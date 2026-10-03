@@ -17,7 +17,9 @@ import Edit from './pages/Edit.jsx'
 import Preview from './pages/Preview.jsx'
 import History from './pages/History.jsx'
 import Settings from './pages/Settings.jsx'
-import { Employee, Templates, Help } from './pages/Simple.jsx'
+import EmployeeView from './pages/EmployeeView.jsx'
+import Templates from './pages/Templates.jsx'
+import { Help } from './pages/Simple.jsx'
 
 const NAV = [
   ['dashboard', 'Dashboard', LayoutDashboard], ['import', 'Import Data', CloudUpload],
@@ -45,7 +47,7 @@ export default function App() {
   const go = (n) => { setPage('wizard'); setStep(n); setMaxStep((m) => Math.max(m, n)) }
   const nav = (id) => {
     if (id === 'import') return go(step <= 3 ? step : 1)
-    if (id === 'rep') return S.data ? go(step >= 4 ? step : 4) : go(1)
+    if (id === 'rep') return S.data && S.data.module === 'rep' ? go(step >= 4 ? step : 4) : go(1)
     setPage(id)
   }
   const ctx = { S, set, step, go, nav, notify, info, maxStep, setMaxStep, reload: async () => setInfo(await api.app_info()) }
@@ -58,12 +60,12 @@ export default function App() {
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key)
   }, [])
 
-  const active = page === 'wizard' ? (step <= 3 ? 'import' : 'rep') : page
+  const active = page === 'wizard' ? (step <= 3 ? 'import' : (S.data?.module === 'employee' ? 'employee' : 'rep')) : page
   const version = info?.version || '1.0.0'
 
   const body = useMemo(() => {
     if (page === 'dashboard') return <Dashboard {...ctx} />
-    if (page === 'employee') return <Employee {...ctx} />
+    if (page === 'employee') return <EmployeeView {...ctx} />
     if (page === 'templates') return <Templates {...ctx} />
     if (page === 'history') return <History {...ctx} />
     if (page === 'settings') return <Settings {...ctx} />

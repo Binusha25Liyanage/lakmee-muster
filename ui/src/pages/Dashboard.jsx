@@ -6,12 +6,10 @@ import { Empty } from '../ui.jsx'
 export default function Dashboard({ S, go, nav, info, notify }) {
   const [hist, setHist] = useState([])
   useEffect(() => { api.history().then((h) => setHist(h.slice(0, 4))) }, [])
-  const st = S.data?.stats
-  const h = new Date().getHours()
+    const h = new Date().getHours()
   const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
   const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-  const v = (x) => (st ? x : '—')
-
+  
   return (
     <>
       <div className="card row" style={{ padding: '20px 24px', flexWrap: 'wrap', gap: 14 }}>
@@ -21,15 +19,13 @@ export default function Dashboard({ S, go, nav, info, notify }) {
         </div>
         <div className="sp" />
         <button className="btn primary" onClick={() => go(1)}><FileUp size={17} /> Import Excel</button>
-        <button className="btn ghost" onClick={() => (S.data ? go(4) : go(1))}><ClipboardList size={17} /> Generate Rep Report</button>
-        <button className="btn ghost" onClick={() => nav('employee')}><Users size={17} /> Generate Employee Report</button>
+        <button className="btn ghost" onClick={() => (S.data?.module === 'rep' ? go(4) : go(1))}><ClipboardList size={17} /> Generate Rep Report</button>
+        <button className="btn ghost" onClick={() => (S.data?.module === 'employee' ? go(4) : nav('employee'))}><Users size={17} /> Generate Employee Report</button>
       </div>
 
       <div className="grid g4 mt">
-        <div className="card kpi"><div className="l">Reps logged in</div><div className="v">{v(st?.logged_in)}</div><div className="s">{st ? `of ${st.total} territories in file` : 'import a file to see this'}</div></div>
-        <div className="card kpi"><div className="l">Reps not logged out</div><div className="v">{v(st?.not_out)}</div><div className="s">still in the field</div></div>
-        <div className="card kpi"><div className="l">Reps logged out</div><div className="v">{v(st?.out)}</div><div className="s">completed the day</div></div>
-        <div className="card kpi"><div className="l">Data issues</div><div className="v">{v(st?.issues)}</div><div className="s">{st ? (st.issues ? 'need review' : 'file looks clean') : ' '}</div></div>
+        {(S.data ? S.data.stat_cards : [['Reps logged in'], ['Reps not logged out'], ['Employees'], ['Late arrivals']].map(([l]) => ({ l, v: '—', s: 'import a file to see this' })))
+          .map((c) => <div key={c.l} className="card kpi"><div className="l">{c.l}</div><div className="v">{c.v}</div><div className="s">{c.s}</div></div>)}
       </div>
 
       <div className="grid mt" style={{ gridTemplateColumns: '1.4fr 1fr' }}>
@@ -56,7 +52,7 @@ export default function Dashboard({ S, go, nav, info, notify }) {
             <div key={m.id} className="issue row" style={{ marginTop: 10 }}>
               <div style={{ fontWeight: 700 }}>{m.name}</div><div className="sp" />
               <span className="small muted">v{m.version}</span>
-              <span className={'chip ' + (m.version.includes('preview') ? 'warn' : 'ok')}>{m.version.includes('preview') ? 'Preview' : 'Active'}</span>
+              <span className={'chip ' + (m.error ? 'maroon' : 'ok')}>{m.error ? 'Error' : 'Active'}</span>
             </div>
           ))}
           <div className="small muted mt" style={{ userSelect: 'text' }}>Data folder: {info?.data_dir}</div>

@@ -1,0 +1,15 @@
+HOW TO UPDATE YOUR LAKMEE MUSTER PROJECT (checkpoint 3 -> checkpoint 4, v1.2.0)
+==========================================================================
+This pack contains ONLY the 14 files that changed. Your settings, history, name corrections
+and templates are stored in %APPDATA%\LakmeeMuster and are NOT touched.
+
+1. Close Lakmee Muster if it is open.
+2. Extract this ZIP anywhere (you get a folder called lakmee-muster-update).
+3. Copy everything inside lakmee-muster-update into your project folder, choose "Replace the files".
+   Keep the same folders: core\, modules\, ui\dist\, ui\src\  (README.md and STATUS.md too).
+   Important: ui\dist\app.js and ui\dist\app.css MUST be replaced - they are the built screens.
+4. Start it the usual way:  python main.py
+5. In the app: Import Data > choose your staff sheet > Configure shows "Exact copy of your Excel sheet".
+
+If you ever want to go back, the older version is in lakmee-muster-checkpoint3.zip.
+Module files can also be replaced from the app: Settings > Modules > Update from file.

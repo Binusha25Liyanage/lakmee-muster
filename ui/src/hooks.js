@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
-import { computeRows } from './store'
+import { computeRows, outputExtras } from './store'
 
 // Debounced live preview from the Python renderer.
 export function usePreview(S, extra = {}) {
@@ -8,9 +8,9 @@ export function usePreview(S, extra = {}) {
   const [busy, setBusy] = useState(false)
   const params = {
     rows: computeRows(S), columns: S.cfg.columns, mode: S.cfg.mode, sort: S.cfg.sort,
-    template: S.cfg.template, title: S.cfg.title, date_format: S.cfg.dateFormat, dpi_preview: 150, ...extra,
+    template: S.cfg.template, title: S.cfg.title, date_format: S.cfg.dateFormat, dpi_preview: 150, ...outputExtras(S), ...extra,
   }
-  const key = JSON.stringify([params.columns, params.mode, params.sort, params.template, params.title, params.date_format, S.edit, S.scope])
+  const key = JSON.stringify([params.columns, params.mode, params.sort, params.template, params.title, params.date_format, S.edit, S.scope, S.cfg.sheet])
   useEffect(() => {
     let dead = false
     setBusy(true)

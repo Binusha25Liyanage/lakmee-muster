@@ -78,7 +78,7 @@ def detect(path):
         return False
 
 
-def load(path):
+def load(path, sheet=None, late_after=None):
     ws = openpyxl.load_workbook(path, data_only=True).active
     header_row = _find_header(ws)
     if header_row is None:
@@ -139,7 +139,7 @@ def load(path):
                 fixed = normalize_time(raw)
                 issues.append({
                     "id": f"{idx}-{key}", "index": idx, "row": r, "field": keys[key],
-                    "territory": str(terr).strip(), "kind": "time_format",
+                    "who": str(terr).strip(), "kind": "time_format",
                     "message": f"Time '{raw}' is not in HH:MM:SS format",
                     "raw": raw, "suggest": fixed, "severity": "high" if fixed is None else "auto",
                 })
@@ -147,7 +147,7 @@ def load(path):
         if tname in seen and rec[keys["in"]]:
             issues.append({
                 "id": f"{idx}-dup", "index": idx, "row": r, "field": keys["terr"],
-                "territory": str(terr).strip(), "kind": "duplicate",
+                "who": str(terr).strip(), "kind": "duplicate",
                 "message": f"Territory also appears on row {seen[tname]}",
                 "raw": str(terr).strip(), "suggest": None, "severity": "review",
             })
@@ -161,18 +161,46 @@ def load(path):
         "out": len([x for x in logged_in if x[keys["out"]]]),
         "issues": len(issues),
     }
+    labels_ = [c["label"] for c in [{"label": l} for l in labels]]
+    name_l = next((l for l in labels if re.search(r"SALES REP$|REP NAME", header_of[l], re.I)), None)
     return {
-        "module": MODULE_INFO["id"],
-        "columns": [{"label": l, "header": header_of[l]} for l in labels],
+        "module": MODULE_INFO["id"], "kind": "sfa", "kind_label": "SFA Rep Attendance",
+        "sheets": [ws.title], "sheet": ws.title,
+        "columns": [{"label": l, "header": header_of[l], "display": l} for l in labels],
         "records": records,
-        "keys": keys,
+        "keys": {**keys, "label": keys["terr"]},
         "date": date.strftime("%Y-%m-%d") if date else None,
-        "issues": issues,
+        "date_label": date.strftime("%Y-%m-%d") if date else "not found",
+        "month_label": "", "date_token": date.strftime("%Y%m%d") if date else "",
+        "issues": issues, "notes": [], "days": [], "status_cols": [], "status_options": [], "readonly": [],
+        "modes": [{"id": "split", "title": "Two images: not logged out + logged out", "sub": "Recommended - one image for each group"},
+                  {"id": "not_out", "title": "Only reps NOT logged out", "sub": "The active shift queue"},
+                  {"id": "out", "title": "Only reps who logged out", "sub": "Completed shifts"},
+                  {"id": "all", "title": "All reps who logged in", "sub": "One master image"}],
+        "default_mode": "split",
+        "sorts": [{"id": "excel", "title": "Same order as Excel"}, {"id": "territory", "title": "Territory A-Z"},
+                  {"id": "login", "title": "Login time"}],
+        "presets": [{"name": "Territory + times", "columns": [keys["terr"], keys["in"], keys["out"]]}]
+                   + ([{"name": "With rep name", "columns": [keys["terr"], name_l, keys["in"], keys["out"]]}] if name_l else []),
+        "default_columns": [keys["terr"], keys["in"], keys["out"]],
+        "default_template": "classic-grid", "grid_template": "classic-grid",
+        "review_cols": [keys["terr"], keys["in"], keys["out"]],
+        "preview_cols": [keys["terr"]] + ([name_l] if name_l else []) + [keys["in"], keys["out"]],
+        "stat_cards": [
+            {"l": "Reps logged in", "v": stats["logged_in"], "s": f"of {stats['total']} territories in file"},
+            {"l": "Reps not logged out", "v": stats["not_out"], "s": "still in the field"},
+            {"l": "Reps logged out", "v": stats["out"], "s": "completed the day"},
+            {"l": "Data issues", "v": stats["issues"], "s": "need review" if stats["issues"] else "file looks clean"},
+        ],
         "stats": stats,
     }
 
 
-def build_tables(data, rows, chosen, mode="split", sort="excel"):
+def recalc(data, rows, late_after=None):
+    return rows
+
+
+def build_tables(data, rows, chosen, mode="split", sort="excel", late_after=None, **kw):
     """rows = the (possibly edited) records that are in scope.
     chosen = list of column labels in output order.
     Returns [(name, headers, table_rows)]."""

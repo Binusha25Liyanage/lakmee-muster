@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { FolderOpen, ZoomIn, ZoomOut, ArrowLeft, Pencil, Save, CheckCircle2, ImageIcon, FileText } from 'lucide-react'
 import { api } from '../api'
 import { usePreview, dirname } from '../hooks'
-import { computeRows, editCount } from '../store'
+import { computeRows, editCount, scopeName, outputExtras } from '../store'
 import { Stepper, Modal, Toggle } from '../ui.jsx'
 import { Preview2 } from './Configure.jsx'
 
@@ -24,7 +24,7 @@ export default function Preview({ S, set, go, step, maxStep, notify, nav }) {
 
   const browse = async (k) => { const f = await api.pick_folder(out[k]); if (f) setOut({ [k]: f }) }
   const two = res?.ok && res.images.length > 1
-  const example = (out.naming || '').replace('{Module}', 'Rep').replace('{Scope}', S.scope.kind === 'all' ? 'AllReps' : 'RepWise')
+  const example = (out.naming || '').replace('{Module}', S.data.module === 'rep' ? 'Rep' : 'Employee').replace('{Scope}', scopeName(S))
     .replace('{Date}', (S.data.date || '').replace(/-/g, ''))
 
   async function generate() {
@@ -32,10 +32,10 @@ export default function Preview({ S, set, go, step, maxStep, notify, nav }) {
     setBusyExp(true)
     const r = await api.export({
       rows: computeRows(S), columns: S.cfg.columns, mode: S.cfg.mode, sort: S.cfg.sort, template: S.cfg.template,
-      title: S.cfg.title, date_format: S.cfg.dateFormat,
+      title: S.cfg.title, date_format: S.cfg.dateFormat, ...outputExtras(S),
       folders: { img1: out.img1 || base, img2: out.img2 || out.img1 || base, pdf: out.pdf || base },
       dpi: out.dpi, want_png: out.png, want_pdf: out.pdfOn, naming: out.naming,
-      scope: S.scope.kind === 'all' ? 'AllReps' : 'RepWise', edits: editCount(S),
+      scope: scopeName(S), edits: editCount(S),
     })
     setBusyExp(false)
     if (!r.ok) return notify(r.error, true)
@@ -62,8 +62,8 @@ export default function Preview({ S, set, go, step, maxStep, notify, nav }) {
       <div className="grid" style={{ gridTemplateColumns: '1.7fr 1fr', alignItems: 'start' }}>
         <div className="card">
           <div className="row" style={{ marginBottom: 8 }}>
-            <button className="btn sm ghost" onClick={() => setZoom(Math.max(30, zoom - 10))}><ZoomOut size={15} /></button><b>{zoom}%</b>
-            <button className="btn sm ghost" onClick={() => setZoom(Math.min(200, zoom + 10))}><ZoomIn size={15} /></button>
+            <button className="btn sm ghost" onClick={() => setZoom(Math.max(30, zoom - (zoom > 100 ? 50 : 10)))}><ZoomOut size={15} /></button><b>{zoom}%</b>
+            <button className="btn sm ghost" onClick={() => setZoom(Math.min(500, zoom + (zoom >= 100 ? 50 : 10)))}><ZoomIn size={15} /></button>
             <button className="btn sm ghost" onClick={() => setZoom(100)}>Fit</button>
             <div className="sp" />{editCount(S) > 0 && <span className="chip maroon">Contains {editCount(S)} edit(s)</span>}</div>
           <Preview2 res={res} busy={busy} tab={tab} setTab={setTab} maxW={zoom + '%'} />

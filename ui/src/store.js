@@ -14,13 +14,13 @@ export function normalizeTime(text) {
   return `${p(h)}:${p(mi)}:${p(s)}`
 }
 
-export const isTimeHeader = (h) => /LOGGED (IN|OUT)$/i.test(h) || /TIME$/i.test(h)
+export const isTimeHeader = (h) => /LOGGED (IN|OUT)$/i.test(h) || /TIME$/i.test(h) || /CHECK-IN$|LAST PUNCH$|^T\d+$/i.test(h)
 
 export const initialSession = () => ({
   file: null, data: null, module: null,
   edit: { overrides: {}, hidden: [], added: [] }, undo: [], redo: [], log: [],
   scope: { kind: 'all', selected: [] },
-  cfg: { columns: [], mode: 'split', sort: 'excel', template: 'classic-grid', title: '', dateFormat: 'MM/DD/YYYY' },
+  cfg: { columns: [], mode: 'split', sort: 'excel', template: 'classic-grid', title: '', dateFormat: 'MM/DD/YYYY', sheet: { rows: false, days: false, totals: false } },
   out: { img1: '', img2: '', pdf: '', dpi: 300, png: true, pdfOn: true, naming: '{Module}_{Scope}_{Date}' },
   ignored: [],
 })
@@ -31,8 +31,8 @@ export function computeRows(S) {
   const { overrides, hidden, added } = S.edit
   const sel = new Set(S.scope.selected)
   let rows = S.data.records.map((r, i) => ({ ...r, ...(overrides[i] || {}), _i: i }))
-  rows = rows.filter((r) => !hidden.includes(r._i))
-  if (S.scope.kind === 'rep') rows = rows.filter((r) => sel.has(r._i))
+  rows = rows.filter((r) => !hidden.includes(r._i) && !r._skip)
+  if (S.scope.kind === 'pick') rows = rows.filter((r) => sel.has(r._i))
   return [...rows, ...added]
 }
 
@@ -57,7 +57,7 @@ function applyCell(S, next, row, label, value) {
     if (value === orig) delete next.overrides[row._i][label]; else next.overrides[row._i][label] = value
     if (!Object.keys(next.overrides[row._i]).length) delete next.overrides[row._i]
   }
-  return { row: row[S.data.keys.terr] || '(new row)', col: label, old, neu: value }
+  return { row: row[S.data.keys.label] || '(new row)', col: label, old, neu: value }
 }
 
 // several cell changes as ONE undo step: items = [{row, label, value}]
@@ -76,7 +76,7 @@ export function hideRow(S, set, row) {
   const next = clone(S.edit)
   if (typeof row._i === 'string') next.added = next.added.filter((x) => x._i !== row._i)
   else next.hidden.push(row._i)
-  push(S, set, next, { row: row[S.data.keys.terr], col: '(row)', old: 'shown', neu: 'hidden' })
+  push(S, set, next, { row: row[S.data.keys.label], col: '(row)', old: 'shown', neu: 'hidden' })
 }
 
 export function addRow(S, set) {
@@ -100,5 +100,19 @@ export const resetAll = (S, set) =>
 export function resetRow(S, set, row) {
   const next = clone(S.edit)
   if (typeof row._i !== 'string') { delete next.overrides[row._i]; next.hidden = next.hidden.filter((x) => x !== row._i) }
-  push(S, set, next, { row: row[S.data.keys.terr], col: '(row)', old: 'edited', neu: 'original' })
+  push(S, set, next, { row: row[S.data.keys.label], col: '(row)', old: 'edited', neu: 'original' })
 }
+
+// what a freshly loaded file should start with
+export function freshConfig(d, prev, templateDefault) {
+  return { ...prev, columns: d.default_columns, mode: d.default_mode, sort: 'excel',
+           template: templateDefault && d.default_mode !== 'sheet' ? templateDefault : d.default_template, title: '', sheet: { rows: false, days: false, totals: false } }
+}
+export const scopeName = (S) => {
+  const emp = S.data?.module === 'employee'
+  return S.scope.kind === 'all' ? (emp ? 'AllEmployees' : 'AllReps') : (emp ? 'EmployeeWise' : 'RepWise')
+}
+
+export const isFixed = (S) => !!S.data?.modes?.find((m) => m.id === S.cfg.mode)?.fixed
+// output options the Python side needs besides rows/columns
+export const outputExtras = (S) => ({ include_empty: S.scope.kind === 'all', hidden: S.edit.hidden, sheet_opts: S.cfg.sheet })

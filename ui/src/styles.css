@@ -130,3 +130,21 @@ td.invalid{background:#f9d3d3 !important}
 .empty .ic{width:64px;height:64px;border-radius:50%;background:var(--cream3);display:grid;place-items:center;margin-bottom:10px;color:var(--maroon)}
 .pillbar{display:flex;flex-wrap:wrap;gap:8px}
 .tag{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:7px;padding:4px 9px;font-size:13px}
+
+/* ---------- employee grid ---------- */
+.st{display:inline-block;min-width:24px;padding:3px 0;border-radius:5px;font-size:11px;font-weight:700;text-align:center;background:var(--cream3);color:var(--ash);position:relative}
+.st-P{background:var(--ok-bg);color:var(--ok)}.st-V{background:var(--info-bg);color:var(--info)}
+.st-L{background:var(--warn-bg);color:#8a5d10}.st-HD{background:var(--warn-bg);color:#8a5d10}
+.st-H{background:#e4e1da;color:var(--ash2)}.st-Ab{background:var(--maroon);color:#fff}
+.st.late::after{content:'';position:absolute;top:-2px;right:-2px;width:7px;height:7px;border-radius:50%;background:#c0182f;border:1px solid #fff}
+table.grid-t{border-collapse:separate;border-spacing:0;font-size:12.5px}
+table.grid-t th{background:var(--ash);color:var(--cream);padding:6px 4px;text-align:center;font-size:11px;position:sticky;top:0;z-index:2;min-width:30px}
+table.grid-t th.nm,table.grid-t td.nm{position:sticky;left:0;z-index:3;text-align:left;min-width:210px;padding:7px 10px;background:var(--cream2);border-right:2px solid var(--line)}
+table.grid-t th.nm{background:var(--ash);z-index:4}
+table.grid-t td{padding:4px 3px;border-bottom:1px solid var(--line);text-align:center;background:var(--cream2)}
+table.grid-t td.wk,table.grid-t th.wk{background:#e6dfcb}
+table.grid-t th.wk{background:#454548}
+.legend{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+.nav-item svg{flex:none}
+.nav-item{font-size:14px}.nav-item span{overflow:hidden;text-overflow:ellipsis}

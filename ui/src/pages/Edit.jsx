@@ -5,15 +5,17 @@ import {
 import { api } from '../api'
 import { usePreview } from '../hooks'
 import {
-  computeRows, editCount, setCell, batchSet, hideRow, addRow, undo, redo, resetAll, resetRow, normalizeTime, isTimeHeader,
+  isFixed, computeRows, editCount, setCell, batchSet, hideRow, addRow, undo, redo, resetAll, resetRow, normalizeTime, isTimeHeader,
 } from '../store'
 import { Stepper, Modal, Toggle } from '../ui.jsx'
 
 export default function Edit({ S, set, go, step, maxStep, notify }) {
   const d = S.data
   const rows = computeRows(S)
-  const cols = S.cfg.columns
-  const header = (l) => d.columns.find((c) => c.label === l).header
+  const [calc, setCalc] = useState({})
+  const fixed = isFixed(S)
+  const cols = fixed ? ['NAME', ...d.days.flatMap((x) => [x.d, x.t])] : S.cfg.columns
+  const header = (l) => d.columns.find((c) => c.label === l)?.header || l
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState(null) // {id,label,value,err}
   const [sel, setSel] = useState([])
@@ -25,9 +27,16 @@ export default function Edit({ S, set, go, step, maxStep, notify }) {
   const { res } = usePreview(S)
   const inputRef = useRef(null)
 
+  useEffect(() => {  // calculated columns (e.g. employee totals) follow the edits
+    if (!d.readonly.length) return
+    let dead = false
+    api.recalc(rows).then((res) => { if (!dead) { const m = {}; res.forEach((r, i) => { m[rows[i]._i] = r }); setCalc(m) } })
+    return () => { dead = true }
+  }, [S.edit, S.scope])
+  const disp = (r, l) => (d.readonly.includes(l) && calc[r._i] ? calc[r._i][l] : r[l])
   const loadCorr = () => api.corrections().then(setCorr)
   useEffect(() => { loadCorr() }, [])
-  useEffect(() => { if (editing && inputRef.current) { inputRef.current.focus(); inputRef.current.select() } }, [editing?.id, editing?.label])
+  useEffect(() => { if (editing && inputRef.current) { inputRef.current.focus(); if (inputRef.current.select) inputRef.current.select() } }, [editing?.id, editing?.label])
   useEffect(() => {
     const close = () => setMenu(null)
     window.addEventListener('click', close)
@@ -40,7 +49,7 @@ export default function Edit({ S, set, go, step, maxStep, notify }) {
     return () => { window.removeEventListener('click', close); window.removeEventListener('keydown', key) }
   }, [S.edit, S.undo, S.redo, editing])
 
-  const shown = rows.filter((r) => !q || cols.some((l) => String(r[l]).toLowerCase().includes(q.toLowerCase())))
+  const shown = rows.filter((r) => !q || cols.some((l) => String(disp(r, l)).toLowerCase().includes(q.toLowerCase())))
   const isEdited = (r, l) => (typeof r._i === 'string' ? !!r[l] : S.edit.overrides[r._i]?.[l] !== undefined)
   const original = (r, l) => (typeof r._i === 'string' ? '' : d.records[r._i][l])
   const nEdits = editCount(S)
@@ -57,7 +66,7 @@ export default function Edit({ S, set, go, step, maxStep, notify }) {
     if (row && v !== row[editing.label]) {
       const old = row[editing.label]
       setCell(S, set, row, editing.label, v)
-      if (!isTimeHeader(header(editing.label)) && old && v) {
+      if (!isTimeHeader(header(editing.label)) && !d.status_cols.includes(editing.label) && old && v) {
         notify(`Changed "${old}" to "${v}".`, false, {
           label: 'Always apply this correction',
           run: async () => { await api.add_correction(old, v, true); loadCorr() },
@@ -107,14 +116,14 @@ export default function Edit({ S, set, go, step, maxStep, notify }) {
             <b>Rows in this export</b><span className="chip">{shown.length} rows</span><div className="sp" />
             <span className="small muted">Enter = save · Esc = cancel · right-click a row for more</span></div>
           <div className="tbl-wrap" style={{ border: 0, maxHeight: 460 }}>
-            <table className="t">
+            <table className={'t ' + (fixed ? 'fixedcols' : '')}>
               <thead><tr><th style={{ width: 34 }}><input type="checkbox" checked={sel.length === shown.length && shown.length > 0}
                 onChange={(e) => setSel(e.target.checked ? shown.map((r) => r._i) : [])} /></th><th>#</th>
                 {cols.map((l) => <th key={l}>{header(l)}</th>)}<th /></tr></thead>
               <tbody>
                 {shown.map((r, n) => (
                   <tr key={r._i} onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, r }) }}
-                      style={!r[d.keys.in] ? { opacity: 0.6 } : null}>
+                      style={d.keys.in && !r[d.keys.in] ? { opacity: 0.6 } : null}>
                     <td><input type="checkbox" checked={sel.includes(r._i)} onChange={() => toggleSel(r._i)} /></td>
                     <td className="muted">{n + 1}</td>
                     {cols.map((l) => {
@@ -122,9 +131,17 @@ export default function Edit({ S, set, go, step, maxStep, notify }) {
                       const ed = isEdited(r, l)
                       return (
                         <td key={l} className={(ed ? 'edited ' : '') + (on && editing.err ? 'invalid' : '')}
-                            title={ed ? `Original: ${original(r, l) || '(empty)'}` : 'Double-click to edit'}
-                            onDoubleClick={() => setEditing({ id: r._i, label: l, value: r[l] || '', err: '' })}>
-                          {on ? (
+                            title={ed ? `Original: ${original(r, l) || '(empty)'}` : d.readonly.includes(l) ? 'Calculated automatically' : 'Double-click to edit'}
+                            style={d.readonly.includes(l) ? { color: 'var(--muted)', fontStyle: 'italic' } : null}
+                            onDoubleClick={() => !d.readonly.includes(l) && setEditing({ id: r._i, label: l, value: r[l] || '', err: '' })}>
+                          {on && d.status_cols.includes(l) ? (
+                            <select ref={inputRef} className="cell-in" value={editing.value}
+                                    onChange={(e) => { setCell(S, set, r, l, e.target.value); setEditing(null) }}
+                                    onBlur={() => setEditing(null)} onKeyDown={(e) => e.key === 'Escape' && setEditing(null)}>
+                              {d.status_options.map((o) => <option key={o} value={o}>{o || '(empty)'}</option>)}
+                              {!d.status_options.includes(editing.value) && <option value={editing.value}>{editing.value}</option>}
+                            </select>
+                          ) : on ? (
                             <>
                               <input ref={inputRef} className="cell-in" value={editing.value}
                                      onChange={(e) => setEditing({ ...editing, value: e.target.value, err: '' })}
@@ -132,7 +149,7 @@ export default function Edit({ S, set, go, step, maxStep, notify }) {
                                      onBlur={commit} />
                               {editing.err && <div className="small" style={{ color: '#a30f0f', marginTop: 3 }}>{editing.err}</div>}
                             </>
-                          ) : (r[l] || <span className="muted">-</span>)}
+                          ) : (disp(r, l) || <span className="muted">-</span>)}
                         </td>
                       )
                     })}
@@ -143,7 +160,7 @@ export default function Edit({ S, set, go, step, maxStep, notify }) {
             {!shown.length && <div className="empty">No rows match.</div>}
           </div>
           <div className="small muted" style={{ padding: '8px 16px' }}>
-            {rows.filter((r) => !r[d.keys.in]).length ? 'Rows without a login time (faded) are not drawn in the image. ' : ''}
+            {d.keys.in && rows.filter((r) => !r[d.keys.in]).length ? 'Rows without a login time (faded) are not drawn in the image. ' : ''}
             {S.edit.hidden.length ? `${S.edit.hidden.length} row(s) hidden from this export.` : ''}
           </div>
         </div>
