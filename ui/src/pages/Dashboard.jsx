@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import { FileUp, ClipboardList, Users, FolderOpen, FileImage, FileText, CheckCircle2 } from 'lucide-react'
 import { api } from '../api'
+import { useNow } from '../hooks'
 import { Empty } from '../ui.jsx'
 
 export default function Dashboard({ S, go, nav, info, notify }) {
   const [hist, setHist] = useState([])
   useEffect(() => { api.history().then((h) => setHist(h.slice(0, 4))) }, [])
-    const h = new Date().getHours()
+  const now = useNow(30000)
+  const h = now.getHours()
   const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
-  const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const today = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   
   return (
     <>

@@ -18,7 +18,7 @@ from collections import Counter
 
 import openpyxl
 
-MODULE_INFO = {"id": "employee", "name": "Employee Attendance", "version": "1.0.0"}
+MODULE_INFO = {"id": "employee", "name": "Employee Attendance", "version": "1.1.0"}
 
 MONTHS = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9,
           "oct": 10, "nov": 11, "dec": 12}
@@ -37,10 +37,22 @@ MODES_MONTHLY = [
     {"id": "leave", "title": "Only employees with leave / absence", "sub": "Leaves, half days or absences"},
     {"id": "late", "title": "Late arrivals list", "sub": "One line per late arrival (uses the late threshold)"},
 ]
+XLSX_NOTE = "Saved as an Excel (.xlsx) file in the layout of your example sheet"
 MODES_BIO = [
+    {"id": "xlsx_daily", "title": "Excel sheet: daily transaction list (download)", "xlsx": True,
+     "sub": "One row per employee (duplicates merged), absent employees shown with '-'. " + XLSX_NOTE},
     {"id": "all", "title": "One image: everyone who checked in", "sub": "Your chosen columns"},
     {"id": "late", "title": "Late arrivals only", "sub": "Checked in after the late threshold"},
 ]
+
+
+MODES_CARD = [
+    {"id": "xlsx_weeks", "title": "Excel workbook: one sheet per week (download)", "xlsx": True,
+     "sub": "Week 1 = days 1-7, Week 2 = 8-14 ... all weeks in ONE file. " + XLSX_NOTE},
+    {"id": "all", "title": "One image: summary of all employees", "sub": "Days present and late days"},
+    {"id": "late", "title": "Late arrivals list", "sub": "One line per late arrival (uses the late threshold)"},
+]
+BAND_DAILY, BAND_WEEKLY, DARK = "EFE9F5", "ECEAE7", "4A4743"
 
 
 # ---------------------------------------------------------------- helpers
@@ -134,17 +146,30 @@ def _is_bio(ws):
     return None
 
 
+def _is_card(ws):
+    """'Total Time Card' export: Employee ID, First Name, Department, Date, Weekday, Clock In, Clock Out, Total Hours."""
+    for r in range(1, 6):
+        vals = [str(ws.cell(r, c).value or "").strip().lower() for c in range(1, 10)]
+        if "clock in" in vals and "clock out" in vals and "employee id" in vals:
+            return r
+    return None
+
+
 # ---------------------------------------------------------------- interface
 def detect(path):
     try:
         wb = openpyxl.load_workbook(path, data_only=True)
-        return any(_is_monthly(ws) or _is_bio(ws) for ws in wb.worksheets)
+        return any(_is_monthly(ws) or _is_bio(ws) or _is_card(ws) for ws in wb.worksheets)
     except Exception:
         return False
 
 
 def load(path, sheet=None, late_after="08:15"):
     wb = openpyxl.load_workbook(path, data_only=True)
+    for ws in wb.worksheets:
+        hr = _is_card(ws)
+        if hr:
+            return _load_card(ws, hr, late_after)
     monthly = [ws.title for ws in wb.worksheets if _is_monthly(ws)]
     if monthly:
         name = sheet if sheet in monthly else monthly[-1]
@@ -327,6 +352,14 @@ def _summarize(rec, days, late_s):
 
 def recalc(data, rows, late_after="08:15"):
     """Totals follow the day cells, so edits to a status or time flow into the summary columns."""
+    if data.get("kind") == "timecard":
+        ls = _late_secs(late_after)
+        out = []
+        for r in rows:
+            r = dict(r)
+            _card_totals(r, data["days"], ls)
+            out.append(r)
+        return out
     if data.get("kind") != "monthly":
         return rows
     ls = _late_secs(late_after)
@@ -346,6 +379,9 @@ def _load_bio(ws, hr, late_after):
         m = re.search(r"(\d{4}-\d{2}-\d{2})", str(ws.cell(r, 1).value or ""))
         if m:
             date = m.group(1)
+    if not date:                                    # no date inside the file: use the device calendar
+        m = re.search(r"(\d{4})(\d{2})(\d{2})", str(ws.title))
+        date = f"{m.group(1)}-{m.group(2)}-{m.group(3)}" if m else datetime.date.today().isoformat()
     people = {}
     for r in range(hr + 1, ws.max_row + 1):
         eid = ws.cell(r, head["employee id"]).value
@@ -369,9 +405,9 @@ def _load_bio(ws, hr, late_after):
         first_in = min(p["ins"]) if p["ins"] else ""
         last = max(p["ins"] + p["outs"]) if (p["ins"] or p["outs"]) else ""
         records.append({"EMPLOYEE ID": eid, "NAME": p["name"], "DEPARTMENT": p["dept"], "FIRST CHECK-IN": first_in,
-                        "LAST PUNCH": last, "PUNCHES": str(p["n"]), "DUPLICATES MERGED": str(merged),
+                        "LAST CHECK-OUT": max(p["outs"]) if p["outs"] else "", "LAST PUNCH": last, "PUNCHES": str(p["n"]), "DUPLICATES MERGED": str(merged),
                         "LATE": "Yes" if first_in and _secs(first_in) > ls else "No", "_row": p["row"]})
-    cols = ["EMPLOYEE ID", "NAME", "DEPARTMENT", "FIRST CHECK-IN", "LAST PUNCH", "PUNCHES", "DUPLICATES MERGED", "LATE"]
+    cols = ["EMPLOYEE ID", "NAME", "DEPARTMENT", "FIRST CHECK-IN", "LAST CHECK-OUT", "LAST PUNCH", "PUNCHES", "DUPLICATES MERGED", "LATE"]
     late_n = sum(1 for r in records if r["LATE"] == "Yes")
     notes = []
     if merged_total:
@@ -383,7 +419,8 @@ def _load_bio(ws, hr, late_after):
         "keys": {"label": "NAME", "terr": "NAME", "in": None, "out": None},
         "date": date, "date_label": date or "not found", "month_label": (datetime.date.fromisoformat(date).strftime("%d %B %Y").upper() if date else ""), "date_token": (date or "").replace("-", ""),
         "issues": [], "notes": notes, "days": [], "status_cols": [], "status_options": [], "readonly": [],
-        "modes": MODES_BIO, "default_mode": "all",
+        "modes": MODES_BIO, "default_mode": "xlsx_daily",
+        "roster_learn": [{"id": r["EMPLOYEE ID"], "name": r["NAME"], "dept": r["DEPARTMENT"]} for r in records],
         "sorts": [{"id": "excel", "title": "Same order as Excel"}, {"id": "name", "title": "Name A-Z"},
                   {"id": "dept", "title": "Department"}, {"id": "time", "title": "Check-in time"}],
         "presets": [{"name": "Check-in list", "columns": ["EMPLOYEE ID", "NAME", "DEPARTMENT", "FIRST CHECK-IN"]},
@@ -419,6 +456,25 @@ def build_tables(data, rows, chosen, mode="all", sort="excel", late_after="08:15
     """rows = (possibly edited) records in scope. Returns [(name, headers, table_rows)]."""
     header_of = {c["label"]: c["header"] for c in data["columns"]}
     ls = _late_secs(late_after)
+    if mode in ("xlsx_daily", "xlsx_weeks"):                      # preview of what the Excel file will hold
+        wb = build_workbook(data, rows, mode, late_after, roster=kw.get("roster"), include_absent=kw.get("include_empty", True))
+        return [(s["key"], s.get("headers_preview", s["headers"]), s["rows"]) for s in wb["sheets"]]
+    if data["kind"] == "timecard":
+        rows = recalc(data, rows, late_after)
+        rows = _sorted(rows, sort)
+        if mode == "late":
+            ev = []
+            for r in rows:
+                for d in data["days"]:
+                    t = r.get(d["i"], "")
+                    if TIME_RE.fullmatch(t) and _secs(t) > ls:
+                        ev.append((d["iso"], r["NAME"], t, str((_secs(t) - ls) // 60)))
+            ev.sort()
+            body = [[datetime.date.fromisoformat(i).strftime("%d %b"), n, t[:5], m] for i, n, t, m in ev]
+            return [("late_arrivals", ["DATE", "NAME", "CLOCK IN", "MINUTES LATE"], body)] if body else []
+        if not rows:
+            return []
+        return [("staff_timecard", [header_of[l] for l in chosen], [[r.get(l, "") for l in chosen] for r in rows])]
     if data["kind"] == "monthly" and mode == "sheet":
         return [_sheet_table(data, rows, late_after, kw.get("include_empty", True), set(kw.get("hidden") or []), kw.get("sheet_opts") or {})]
     if data["kind"] == "monthly":
@@ -559,3 +615,176 @@ def _sheet_table(data, rows, late_after, include_empty, hidden, opts=None):
         y += rh
     people = sum(1 for lr, rec in keep if rec)
     return ("staff_sheet", {"items": items, "width": W + 3, "height": y + 3, "count": people}, None)
+
+
+# ---------------------------------------------------------------- Total Time Card (monthly, per day clock in / out)
+def _card_totals(rec, days, late_s):
+    present = late = 0
+    for d in days:
+        if rec.get(d["i"]) or rec.get(d["o"]):
+            present += 1
+        if TIME_RE.fullmatch(rec.get(d["i"], "")) and _secs(rec[d["i"]]) > late_s:
+            late += 1
+    rec["DAYS PRESENT"], rec["LATE DAYS"] = str(present), str(late)
+
+
+def _load_card(ws, hr, late_after):
+    head = {str(ws.cell(hr, c).value or "").strip().lower(): c for c in range(1, ws.max_column + 1)}
+    need = ["employee id", "first name", "department", "date", "clock in", "clock out"]
+    if any(n not in head for n in need):
+        raise ValueError("The Total Time Card needs these columns: Employee ID, First Name, Department, Date, Clock In, Clock Out.")
+    people, dates, tidied = {}, set(), 0
+    for r in range(hr + 1, ws.max_row + 1):
+        eid = ws.cell(r, head["employee id"]).value
+        dv = ws.cell(r, head["date"]).value
+        if eid in (None, "") or dv in (None, ""):
+            continue
+        if isinstance(dv, (datetime.datetime, datetime.date)):
+            iso = dv.date().isoformat() if isinstance(dv, datetime.datetime) else dv.isoformat()
+        else:
+            m = re.search(r"(\d{4})-(\d{2})-(\d{2})", str(dv))
+            if not m:
+                continue
+            iso = m.group(0)
+        dates.add(iso)
+        eid = str(eid).strip()
+        p = people.setdefault(eid, {"name": str(ws.cell(r, head["first name"]).value or "").strip(),
+                                    "dept": str(ws.cell(r, head["department"]).value or "").strip(), "days": {}, "row": r})
+        vals = []
+        for k in ("clock in", "clock out"):
+            raw = ws.cell(r, head[k]).value
+            t = normalize_time(raw) if raw not in (None, "") else ""
+            if raw not in (None, "") and t is None:
+                t = ""
+            elif t and not isinstance(raw, (datetime.time, datetime.datetime)) and str(raw).strip() != t[:5] and str(raw).strip() != t:
+                tidied += 1
+            vals.append(t or "")
+        p["days"][iso] = vals
+    if not people:
+        raise ValueError("No attendance lines were found in this Total Time Card.")
+    all_dates = sorted(dates)
+    first = datetime.date.fromisoformat(all_dates[0])
+    days = [{"iso": iso, "n": int(iso[8:]), "wd": datetime.date.fromisoformat(iso).strftime("%a"),
+             "i": f"I{iso}", "o": f"O{iso}", "t": f"I{iso}", "d": f"I{iso}"} for iso in all_dates]
+    month_label = first.strftime("%B %Y").upper()
+    ls = _late_secs(late_after)
+    records = []
+    for eid in sorted(people, key=lambda x: (len(x), x)):
+        p = people[eid]
+        rec = {"EMPLOYEE ID": eid, "NAME": p["name"], "DEPARTMENT": p["dept"], "_row": p["row"]}
+        for d in days:
+            a, b = p["days"].get(d["iso"], ["", ""])
+            rec[d["i"]], rec[d["o"]] = a, b
+        _card_totals(rec, days, ls)
+        records.append(rec)
+    cols = [{"label": "EMPLOYEE ID", "header": "EMPLOYEE ID", "display": "Employee ID"},
+            {"label": "NAME", "header": "NAME", "display": "Name"},
+            {"label": "DEPARTMENT", "header": "DEPARTMENT", "display": "Department"},
+            {"label": "DAYS PRESENT", "header": "DAYS PRESENT", "display": "Days present"},
+            {"label": "LATE DAYS", "header": "LATE DAYS", "display": "Late days"}]
+    for d in days:
+        mon = datetime.date.fromisoformat(d["iso"]).strftime("%b")
+        cols.append({"label": d["i"], "header": f"{mon} {d['n']} IN", "display": f"{mon} {d['n']} ({d['wd']}) check-in"})
+        cols.append({"label": d["o"], "header": f"{mon} {d['n']} OUT", "display": f"{mon} {d['n']} ({d['wd']}) check-out"})
+    weeks = _weeks(days)
+    late_total = sum(int(r["LATE DAYS"]) for r in records)
+    notes = [f"{len(people)} employees and {len(days)} days were read. Weeks: " + "; ".join(w["label"] for w in weeks) + "."]
+    if tidied:
+        notes.append(f"{tidied} times were tidied into HH:MM format.")
+    return {
+        "module": "employee", "kind": "timecard", "kind_label": "Total Time Card (monthly)",
+        "sheets": [ws.title], "sheet": ws.title, "columns": cols, "records": records,
+        "keys": {"label": "NAME", "terr": "NAME", "in": None, "out": None},
+        "date": first.isoformat(), "date_label": month_label.title(), "month_label": month_label,
+        "date_token": f"{first.year}{first.month:02d}", "issues": [], "notes": notes, "days": days,
+        "status_cols": [], "status_options": [], "readonly": ["DAYS PRESENT", "LATE DAYS"],
+        "modes": MODES_CARD, "default_mode": "xlsx_weeks",
+        "sorts": [{"id": "excel", "title": "Employee ID"}, {"id": "name", "title": "Name A-Z"}, {"id": "dept", "title": "Department"}],
+        "presets": [{"name": "Summary", "columns": ["EMPLOYEE ID", "NAME", "DEPARTMENT", "DAYS PRESENT", "LATE DAYS"]}],
+        "default_columns": ["EMPLOYEE ID", "NAME", "DEPARTMENT", "DAYS PRESENT", "LATE DAYS"],
+        "default_template": "emp-summary", "grid_template": "emp-summary",
+        "review_cols": ["EMPLOYEE ID", "DEPARTMENT", "DAYS PRESENT", "LATE DAYS"],
+        "preview_cols": ["EMPLOYEE ID", "NAME", "DEPARTMENT", "DAYS PRESENT"],
+        "roster_learn": [{"id": r["EMPLOYEE ID"], "name": r["NAME"], "dept": r["DEPARTMENT"]} for r in records],
+        "stat_cards": [
+            {"l": "Employees", "v": len(records), "s": f"in {month_label.title()}"},
+            {"l": "Days in file", "v": len(days), "s": f"{len(weeks)} weekly sheet(s)"},
+            {"l": "Late arrivals", "v": late_total, "s": f"clock in after {late_after}"},
+            {"l": "Departments", "v": len({r['DEPARTMENT'] for r in records}), "s": "in the file"},
+        ],
+        "stats": {"total": len(records), "issues": 0},
+    }
+
+
+def _weeks(days):
+    """Week 1 = day 1-7 of the month, Week 2 = 8-14 ... (a short last week stays as it is, e.g. Sep 29-30)."""
+    groups = {}
+    for d in days:
+        dt = datetime.date.fromisoformat(d["iso"])
+        groups.setdefault((dt.year, dt.month, (dt.day - 1) // 7), []).append(d)
+    out = []
+    for n, key in enumerate(sorted(groups), start=1):
+        ds = groups[key]
+        a, b = datetime.date.fromisoformat(ds[0]["iso"]), datetime.date.fromisoformat(ds[-1]["iso"])
+        f = lambda x: f"{x.strftime('%b')} {x.day}"
+        out.append({"n": n, "days": ds, "label": f"Week{n} {f(a)}-{f(b)}", "sheet": f"Week{n}_{f(a).replace(' ', '_')}_{f(b).replace(' ', '_')}"})
+    return out
+
+
+# ---------------------------------------------------------------- Excel output (spec for core/xlsx_out.py)
+def _hm(t):
+    return t[:5] if TIME_RE.fullmatch(t or "") else (t or "")
+
+
+def _id_key(r):
+    e = str(r.get("EMPLOYEE ID", ""))
+    return (0, int(e), "") if e.isdigit() else (1, 0, e)
+
+
+def build_workbook(data, rows, mode, late_after="08:15", roster=None, include_absent=True):
+    """Returns {"filename": str, "sheets": [spec]}. Each spec holds the cells AND the look (see core/xlsx_out.py)."""
+    if mode == "xlsx_daily":
+        date = data.get("date") or datetime.date.today().isoformat()
+        recs = {}
+        for r in rows:
+            recs[str(r.get("EMPLOYEE ID", ""))] = r
+        for p in (roster or []):                       # employees on the roster that have no punch today
+            if include_absent and p["id"] not in recs:
+                recs[p["id"]] = {"EMPLOYEE ID": p["id"], "NAME": p["name"], "DEPARTMENT": p["dept"], "_absent": True}
+        body = []
+        for r in sorted(recs.values(), key=_id_key):
+            fi, lo = r.get("FIRST CHECK-IN", ""), r.get("LAST CHECK-OUT", "")
+            if fi:
+                body.append([r["EMPLOYEE ID"], r["NAME"], r["DEPARTMENT"], _hm(fi), "Check In"])
+            if lo:
+                body.append([r["EMPLOYEE ID"], r["NAME"], r["DEPARTMENT"], _hm(lo), "Check Out"])
+            if not fi and not lo:
+                body.append([r["EMPLOYEE ID"], r["NAME"], r["DEPARTMENT"], "-", "-"])
+        headers = ["Employee ID", "First Name", "Department", "Time", "Punch State"]
+        d = datetime.date.fromisoformat(date)
+        spec = {"key": "daily", "name": "Transaction", "style": "daily", "title": "Transaction", "subtitle": f"Date: {date}",
+                "headers": headers, "rows": body, "widths": {1: 16, 2: 16, 3: 16, 4: 12, 5: 14}, "band": 0, "band_color": BAND_DAILY,
+                "head_fill": DARK, "aligns": ["l"] * 5}
+        return {"filename": f"Transaction_{d.year}_{d.month:02d}_{d.day:02d}", "sheets": [spec]}
+    # weekly workbook from the Total Time Card
+    rows = sorted(rows, key=_id_key)
+    sheets = []
+    for w in _weeks(data["days"]):
+        heads, group, body = ["Employee ID", "First Name", "Department"], [], []
+        for k, d in enumerate(w["days"]):
+            dt = datetime.date.fromisoformat(d["iso"])
+            group.append((f"{dt.strftime('%b')} {dt.day}", 4 + 2 * k, 5 + 2 * k))
+            heads += ["Check in", "Check out"]
+        for r in rows:
+            line = [r["EMPLOYEE ID"], r["NAME"], r["DEPARTMENT"]]
+            for d in w["days"]:
+                line += [_hm(r.get(d["i"], "")), _hm(r.get(d["o"], ""))]
+            body.append(line)
+        flat = ["Employee ID", "First Name", "Department"] + [f"{g[0]} {h}" for g, h in zip([g for g in group for _ in (0, 1)], heads[3:])]
+        sheets.append({"key": f"week{w['n']}", "name": w["sheet"], "style": "weekly", "title": "Employee Daily Attendance", "title_cols": 3,
+                       "group": group, "headers": heads, "flat_headers": flat, "rows": body,
+                       "widths": {**{c: 16 for c in (1, 2, 3)}, **{c: 11 for c in range(4, 4 + 2 * len(w["days"]))}},
+                       "band": 1, "band_color": BAND_WEEKLY, "head_fill": DARK, "aligns": ["l"] * 3 + ["c"] * (2 * len(w["days"]))})
+    for s in sheets:                                   # the preview image uses the flat header names
+        s["headers_preview"] = s["flat_headers"]
+    return {"filename": f"Attendance_{data.get('month_label', '').title().replace(' ', '_')}_Weekly", "sheets": sheets}

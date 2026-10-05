@@ -27,6 +27,7 @@ export default function Review({ S, set, go, step, maxStep }) {
   }
   const mapping = d.module === 'rep'
     ? [['Territory', d.keys.terr], ['Login time', d.keys.in], ['Logout time', d.keys.out]]
+    : d.kind === 'timecard' ? [['Employee ID', 'EMPLOYEE ID'], ['Name', 'NAME'], ['Clock in / out per day', d.days[0].i]]
     : d.kind === 'monthly' ? [['Employee name', 'NAME'], ['Section', 'SECTION'], ['Day columns (status per day)', d.status_cols[0]]]
       : [['Employee ID', 'EMPLOYEE ID'], ['Name', 'NAME'], ['Check-in time', 'FIRST CHECK-IN']]
 

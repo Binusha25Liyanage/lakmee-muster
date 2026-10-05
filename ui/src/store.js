@@ -14,14 +14,14 @@ export function normalizeTime(text) {
   return `${p(h)}:${p(mi)}:${p(s)}`
 }
 
-export const isTimeHeader = (h) => /LOGGED (IN|OUT)$/i.test(h) || /TIME$/i.test(h) || /CHECK-IN$|LAST PUNCH$|^T\d+$/i.test(h)
+export const isTimeHeader = (h) => /LOGGED (IN|OUT)$/i.test(h) || /TIME$/i.test(h) || /CHECK-IN$|CHECK-OUT$|LAST PUNCH$|^T\d+$|\d (IN|OUT)$/i.test(h)
 
 export const initialSession = () => ({
   file: null, data: null, module: null,
   edit: { overrides: {}, hidden: [], added: [] }, undo: [], redo: [], log: [],
   scope: { kind: 'all', selected: [] },
   cfg: { columns: [], mode: 'split', sort: 'excel', template: 'classic-grid', title: '', dateFormat: 'MM/DD/YYYY', sheet: { rows: false, days: false, totals: false } },
-  out: { img1: '', img2: '', pdf: '', dpi: 300, png: true, pdfOn: true, naming: '{Module}_{Scope}_{Date}' },
+  out: { img1: '', img2: '', pdf: '', xlsx: '', dpi: 300, png: true, pdfOn: true, naming: '{Module}_{Scope}_{Date}' },
   ignored: [],
 })
 
@@ -113,6 +113,7 @@ export const scopeName = (S) => {
   return S.scope.kind === 'all' ? (emp ? 'AllEmployees' : 'AllReps') : (emp ? 'EmployeeWise' : 'RepWise')
 }
 
+export const isXlsx = (S) => !!S.data?.modes?.find((m) => m.id === S.cfg.mode)?.xlsx
 export const isFixed = (S) => !!S.data?.modes?.find((m) => m.id === S.cfg.mode)?.fixed
 // output options the Python side needs besides rows/columns
 export const outputExtras = (S) => ({ include_empty: S.scope.kind === 'all', hidden: S.edit.hidden, sheet_opts: S.cfg.sheet })

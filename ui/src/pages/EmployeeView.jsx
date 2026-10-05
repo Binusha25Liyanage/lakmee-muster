@@ -34,6 +34,7 @@ export default function EmployeeView({ S, go }) {
   const rows = (calc.length ? calc : base).filter((r) => (!q || r.NAME.toLowerCase().includes(q.toLowerCase())) && (!sec || (r.SECTION ?? r.DEPARTMENT) === sec))
   const sections = [...new Set(base.map((r) => r.SECTION ?? r.DEPARTMENT).filter(Boolean))]
   const monthly = d.kind === 'monthly'
+  const card = d.kind === 'timecard'
   const lateSec = (t) => { const [h, m, s] = t.split(':').map(Number); return h * 3600 + m * 60 + (s || 0) }
   const limit = lateSec(after + ':00')
   const isLate = (r, day) => late && r[day.d] === 'P' && r[day.t] && lateSec(r[day.t]) > limit
@@ -45,7 +46,7 @@ export default function EmployeeView({ S, go }) {
         <div className="sp" />
         <div className="row" style={{ background: 'var(--cream3)', borderRadius: 9, padding: 3 }}>
           {monthly && <button className={'btn sm ' + (tab === 'grid' ? 'primary' : '')} onClick={() => setTab('grid')}>Monthly calendar grid</button>}
-          <button className={'btn sm ' + ((tab === 'table' || !monthly) ? 'primary' : '')} onClick={() => setTab('table')}>{monthly ? 'Employee summary table' : 'Daily check-ins'}</button></div>
+          <button className={'btn sm ' + ((tab === 'table' || !monthly) ? 'primary' : '')} onClick={() => setTab('table')}>{monthly ? 'Employee summary table' : card ? 'Monthly summary' : 'Daily check-ins'}</button></div>
       </div>
 
       <div className="grid g4 mt">{d.stat_cards.map((c) => <div key={c.l} className="card kpi"><div className="l">{c.l}</div><div className="v" style={{ fontSize: 28 }}>{c.v}</div><div className="s">{c.s}</div></div>)}</div>
@@ -76,6 +77,9 @@ export default function EmployeeView({ S, go }) {
           <table className="t"><thead><tr><th>Employee</th><th>Section</th>{['PRESENT', 'LEAVES', 'HOLIDAYS', 'HALF DAYS', 'VISITS', 'ABSENT', 'LATE DAYS', 'WORK DAYS'].map((h) => <th key={h} className="ctr">{h}</th>)}</tr></thead>
             <tbody>{rows.map((r) => <tr key={r._i}><td><b>{r.NAME}</b></td><td>{r.SECTION || '-'}</td>
               {['PRESENT', 'LEAVES', 'HOLIDAYS', 'HALF DAYS', 'VISITS', 'ABSENT', 'LATE DAYS', 'WORK DAYS'].map((h) => <td key={h} className="ctr">{r[h]}</td>)}</tr>)}</tbody></table>
+        ) : card ? (
+          <table className="t"><thead><tr><th>ID</th><th>Name</th><th>Department</th><th className="ctr">Days present</th><th className="ctr">Late days</th></tr></thead>
+            <tbody>{rows.map((r) => <tr key={r._i}><td>{r['EMPLOYEE ID']}</td><td><b>{r.NAME}</b></td><td>{r.DEPARTMENT}</td><td className="ctr">{r['DAYS PRESENT']}</td><td className="ctr">{r['LATE DAYS']}</td></tr>)}</tbody></table>
         ) : (
           <table className="t"><thead><tr><th>ID</th><th>Name</th><th>Department</th><th className="ctr">First check-in</th><th className="ctr">Last punch</th><th className="ctr">Punches</th><th className="ctr">Late</th></tr></thead>
             <tbody>{rows.map((r) => <tr key={r._i}><td>{r['EMPLOYEE ID']}</td><td><b>{r.NAME}</b></td><td>{r.DEPARTMENT}</td>

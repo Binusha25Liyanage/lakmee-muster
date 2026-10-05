@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { FolderOpen, ZoomIn, ZoomOut, ArrowLeft, Pencil, Save, CheckCircle2, ImageIcon, FileText } from 'lucide-react'
+import { FolderOpen, ZoomIn, ZoomOut, ArrowLeft, Pencil, Save, CheckCircle2, ImageIcon, FileText, FileSpreadsheet } from 'lucide-react'
 import { api } from '../api'
 import { usePreview, dirname } from '../hooks'
-import { computeRows, editCount, scopeName, outputExtras } from '../store'
+import { computeRows, editCount, scopeName, outputExtras, isXlsx } from '../store'
 import { Stepper, Modal, Toggle } from '../ui.jsx'
 import { Preview2 } from './Configure.jsx'
 
@@ -15,10 +15,12 @@ export default function Preview({ S, set, go, step, maxStep, notify, nav }) {
   const out = S.out
   const setOut = (p) => set({ out: { ...out, ...p } })
   const base = dirname(S.file?.path)
+  const xl = isXlsx(S)
 
   useEffect(() => {  // first run: default all three folders to the Excel file's folder
     const p = {}
-    ;['img1', 'img2', 'pdf'].forEach((k) => { if (!out[k]) p[k] = base })
+    ;['img1', 'img2', 'pdf', 'xlsx'].forEach((k) => { if (!out[k]) p[k] = base })
+    if (xl) { p.png = false; p.pdfOn = false }
     if (Object.keys(p).length) setOut(p)
   }, [])
 
@@ -28,12 +30,12 @@ export default function Preview({ S, set, go, step, maxStep, notify, nav }) {
     .replace('{Date}', (S.data.date || '').replace(/-/g, ''))
 
   async function generate() {
-    if (!out.png && !out.pdfOn) return notify('Tick at least one of PNG or PDF.', true)
+    if (!xl && !out.png && !out.pdfOn) return notify('Tick at least one of PNG or PDF.', true)
     setBusyExp(true)
     const r = await api.export({
       rows: computeRows(S), columns: S.cfg.columns, mode: S.cfg.mode, sort: S.cfg.sort, template: S.cfg.template,
       title: S.cfg.title, date_format: S.cfg.dateFormat, ...outputExtras(S),
-      folders: { img1: out.img1 || base, img2: out.img2 || out.img1 || base, pdf: out.pdf || base },
+      folders: { img1: out.img1 || base, img2: out.img2 || out.img1 || base, pdf: out.pdf || base, xlsx: out.xlsx || base },
       dpi: out.dpi, want_png: out.png, want_pdf: out.pdfOn, naming: out.naming,
       scope: scopeName(S), edits: editCount(S),
     })
@@ -41,7 +43,7 @@ export default function Preview({ S, set, go, step, maxStep, notify, nav }) {
     if (!r.ok) return notify(r.error, true)
     setDone(r.files)
   }
-  const openAll = () => [...new Set([out.img1, out.img2, out.pdf])].forEach((f) => f && api.open_folder(f))
+  const openAll = () => [...new Set([out.xlsx, out.img1, out.img2, out.pdf])].forEach((f) => f && api.open_folder(f))
 
   const Row = ({ k, label, tag, icon }) => (
     <>
@@ -66,20 +68,22 @@ export default function Preview({ S, set, go, step, maxStep, notify, nav }) {
             <button className="btn sm ghost" onClick={() => setZoom(Math.min(500, zoom + (zoom >= 100 ? 50 : 10)))}><ZoomIn size={15} /></button>
             <button className="btn sm ghost" onClick={() => setZoom(100)}>Fit</button>
             <div className="sp" />{editCount(S) > 0 && <span className="chip maroon">Contains {editCount(S)} edit(s)</span>}</div>
-          <Preview2 res={res} busy={busy} tab={tab} setTab={setTab} maxW={zoom + '%'} />
+          <Preview2 res={res} busy={busy} tab={tab} setTab={setTab} maxW={zoom + '%'} xlsx={xl} />
         </div>
         <div>
           <div className="card">
             <div className="row"><h3 style={{ margin: 0 }}>Save locations</h3><div className="sp" /><span className="chip dark">Independent paths</span></div>
             <div className="sub small">Choose a separate folder for each output.</div>
-            <Row k="img1" icon={<ImageIcon size={15} />} label={two || S.cfg.mode === 'split' ? 'Image 1 folder (not logged out)' : 'Image folder'} tag="PNG" />
+            {xl && <Row k="xlsx" icon={<FileSpreadsheet size={15} />} label="Excel folder" tag="XLSX" />}
+            {(!xl || out.png) && <Row k="img1" icon={<ImageIcon size={15} />} label={two || S.cfg.mode === 'split' ? 'Image 1 folder (not logged out)' : 'Image folder'} tag="PNG" />}
             {S.cfg.mode === 'split' && <Row k="img2" icon={<ImageIcon size={15} />} label="Image 2 folder (logged out)" tag="PNG" />}
-            <Row k="pdf" icon={<FileText size={15} />} label="PDF folder" tag="PDF" />
+            {(!xl || out.pdfOn) && <Row k="pdf" icon={<FileText size={15} />} label="PDF folder" tag="PDF" />}
           </div>
           <div className="card mt">
             <h3>Packaging</h3>
-            <div className="row mt"><Toggle on={out.png} onChange={(v) => setOut({ png: v })} /><div><b>PNG images</b><div className="small muted">{two ? res.images.length : 1} file(s), cropped to the table</div></div></div>
-            <div className="row mt"><Toggle on={out.pdfOn} onChange={(v) => setOut({ pdfOn: v })} /><div><b>PDF</b><div className="small muted">1 file, one page per image</div></div></div>
+            {xl && <div className="row mt"><Toggle on={true} onChange={() => {}} /><div><b>Excel file (.xlsx)</b><div className="small muted">{S.data.kind === 'timecard' ? '1 workbook, one sheet per week' : '1 sheet, same layout as the example'}</div></div></div>}
+            <div className="row mt"><Toggle on={out.png} onChange={(v) => setOut({ png: v })} /><div><b>{xl ? 'Also save PNG images' : 'PNG images'}</b><div className="small muted">{two ? res.images.length : 1} file(s), cropped to the table</div></div></div>
+            <div className="row mt"><Toggle on={out.pdfOn} onChange={(v) => setOut({ pdfOn: v })} /><div><b>{xl ? 'Also save a PDF' : 'PDF'}</b><div className="small muted">1 file, one page per image</div></div></div>
             <label className="lab">IMAGE QUALITY</label>
             <div className="grid g2">{[[300, '300 DPI', 'Crisp, print ready'], [150, '150 DPI', 'Smaller, quick to share']].map(([v, t, s]) => (
               <div key={v} className={'radio-row ' + (out.dpi === v ? 'sel' : '')} onClick={() => setOut({ dpi: v })}><input type="radio" readOnly checked={out.dpi === v} /><div><b>{t}</b><div className="small muted">{s}</div></div></div>))}</div>

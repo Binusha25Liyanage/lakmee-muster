@@ -15,10 +15,10 @@ import time
 
 from reportlab.pdfgen import canvas
 
-from . import renderer, storage
+from . import renderer, storage, xlsx_out
 
 APP_NAME = "Lakmee Muster"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 
 MODULE_FILES = {"rep": "modules.rep_attendance", "employee": "modules.employee_attendance"}
 MODULE_SHORT = {"rep": "Rep", "employee": "Employee"}
@@ -60,7 +60,8 @@ class Api:
             info["has_backup"] = os.path.exists(path + ".bak")
             mods.append(info)
         return {"name": APP_NAME, "version": APP_VERSION, "modules": mods,
-                "data_dir": storage.data_dir(), "platform": sys.platform}
+                "data_dir": storage.data_dir(), "platform": sys.platform,
+                "now": datetime.datetime.now().isoformat(timespec="seconds")}
 
     def win_minimize(self):
         if self._window:
@@ -128,6 +129,8 @@ class Api:
             except Exception as e:
                 return {"ok": False, "error": str(e)}
             data["auto_fixed"] = self._apply_corrections(data)
+            if data.get("roster_learn"):
+                storage.learn_roster(data["roster_learn"])
             self._data, self._source = data, path
             return {"ok": True, "data": data, "module": mod.MODULE_INFO,
                     "file": {"name": os.path.basename(path), "path": path,
@@ -265,6 +268,26 @@ class Api:
         importlib.reload(_module(mid))
         return {"ok": True, "info": self.app_info()}
 
+    # ------------------------------------------------------------ employee roster
+    def now(self):
+        """The device clock and calendar (the UI also reads them, this is the Python side)."""
+        n = datetime.datetime.now()
+        return {"iso": n.isoformat(timespec="seconds"), "date": n.date().isoformat(), "time": n.strftime("%H:%M:%S")}
+
+    def roster(self):
+        return storage.get_roster()
+
+    def roster_exclude(self, eid, excluded=True):
+        return storage.set_roster_excluded(eid, excluded)
+
+    def roster_add(self, eid, name, dept):
+        if not str(eid).strip() or not str(name).strip():
+            return storage.get_roster()
+        return storage.add_roster(eid, name, dept)
+
+    def roster_delete(self, eid):
+        return storage.delete_roster(eid)
+
     # ------------------------------------------------------------ settings / history
     def settings(self):
         return storage.get_settings()
@@ -285,6 +308,7 @@ class Api:
         mod = _module(self._data["module"])
         late = storage.get_settings().get("late_after", "08:15")
         extra = {k: p[k] for k in ("include_empty", "hidden", "sheet_opts") if k in p}
+        extra["roster"] = [r for r in storage.get_roster() if not r["excluded"]]
         tables = mod.build_tables(self._data, p["rows"], p["columns"], p.get("mode", "split"), p.get("sort", "excel"), late, **extra)
         if not tables:
             raise ValueError("No rows match this filter, nothing to draw.")
@@ -328,10 +352,20 @@ class Api:
             dpi = int(p.get("dpi", 300))
             written = []
             mid = self._data["module"]
+            if p.get("mode") in ("xlsx_daily", "xlsx_weeks"):
+                late = storage.get_settings().get("late_after", "08:15")
+                wbk = _module(mid).build_workbook(self._data, p["rows"], p["mode"], late,
+                                                  roster=[r for r in storage.get_roster() if not r["excluded"]],
+                                                  include_absent=p.get("include_empty", True))
+                xf = f.get("xlsx") or f.get("pdf")
+                os.makedirs(xf, exist_ok=True)
+                xpath = os.path.join(xf, wbk["filename"] + ".xlsx")
+                xlsx_out.write_workbook(xpath, wbk["sheets"])
+                written.append(xpath)
             scope = p.get("scope", "All")
             base = (p.get("naming") or "{Module}_{Scope}_{Date}").replace("{Module}", MODULE_SHORT[mid]) \
                 .replace("{Scope}", scope).replace("{Date}", self._data.get("date_token", ""))
-            if p.get("want_pdf", True):
+            if p.get("want_pdf", True) and not p.get("xlsx_only"):
                 os.makedirs(f["pdf"], exist_ok=True)
                 pdf_path = os.path.join(f["pdf"], base + ".pdf")
                 c = canvas.Canvas(pdf_path)
@@ -342,7 +376,7 @@ class Api:
                         renderer.draw_pdf_page(c, tpl, title, headers, rows)
                 c.save()
                 written.append(pdf_path)
-            if p.get("want_png", True):
+            if p.get("want_png", True) and not p.get("xlsx_only"):
                 for i, (name, headers, rows) in enumerate(tables):
                     folder = f["img1"] if i == 0 else f["img2"]
                     os.makedirs(folder, exist_ok=True)
@@ -353,7 +387,7 @@ class Api:
                         else:
                             fh.write(renderer.render_png(tpl, title, headers, rows, dpi=dpi))
                     written.append(path)
-            storage.save_settings({"img1_folder": f["img1"], "img2_folder": f["img2"], "pdf_folder": f["pdf"],
+            storage.save_settings({"img1_folder": f["img1"], "img2_folder": f["img2"], "pdf_folder": f["pdf"], "xlsx_folder": f.get("xlsx", ""),
                                    "dpi": dpi, "naming": p.get("naming") or "{Module}_{Scope}_{Date}"})
             entry = storage.add_history({
                 "module": self._data.get("kind_label", MODULE_SHORT[mid]), "scope": scope,

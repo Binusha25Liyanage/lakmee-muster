@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Plus, Minus, RefreshCw } from 'lucide-react'
 import { api } from '../api'
 import { usePreview } from '../hooks'
-import { isFixed } from '../store'
+import { isFixed, isXlsx } from '../store'
 import { Stepper } from '../ui.jsx'
 
-export function Preview2({ res, busy, tab, setTab, maxW }) {
+export function Preview2({ res, busy, tab, setTab, maxW, xlsx }) {
   const imgs = res?.ok ? res.images : []
   const cur = imgs[Math.min(tab, imgs.length - 1)]
   return (
@@ -13,7 +13,7 @@ export function Preview2({ res, busy, tab, setTab, maxW }) {
       <div className="tabs">
         {imgs.map((im, i) => (
           <button key={im.name} className={'tab ' + (i === tab ? 'on' : '')} onClick={() => setTab(i)}>
-            Image {i + 1}: {im.name.replace(/_/g, ' ')} <span className="chip maroon">{im.count}</span></button>))}
+            {xlsx ? 'Sheet' : 'Image'} {i + 1}: {im.name.replace(/_/g, ' ')} <span className="chip maroon">{im.count}</span></button>))}
         {busy && <span className="small muted" style={{ marginLeft: 'auto' }}><RefreshCw size={13} /> updating…</span>}
       </div>
       <div className="preview-stage">
@@ -49,6 +49,7 @@ export default function Configure({ S, set, go, step, maxStep }) {
   }
   const tog = (arr, setArr, l, multi) => setArr(arr.includes(l) ? arr.filter((x) => x !== l) : multi ? [...arr, l] : [l])
   const fixed = isFixed(S)
+  const xl = isXlsx(S)
   const sh = d.sheet || {}
   const setMode = (id) => {
     const m = d.modes.find((x) => x.id === id)
@@ -76,7 +77,15 @@ export default function Configure({ S, set, go, step, maxStep }) {
                       <input type="checkbox" checked={!!cfg.sheet[k]} onChange={(e) => setCfg({ sheet: { ...cfg.sheet, [k]: e.target.checked } })} /> <span>{label}</span></label>))}
               </div>
             </div>)}
-          <div className="card" style={fixed ? { opacity: 0.45, pointerEvents: 'none' } : null}>
+          {xl && (
+            <div className="card" style={{ borderColor: 'var(--maroon)', marginBottom: 14 }}>
+              <h3>Excel file (.xlsx) output</h3>
+              <div className="sub small">{d.kind === 'timecard'
+                ? 'One Excel file with a sheet for every week (Week 1 = days 1-7, Week 2 = 8-14 ...). Same layout as your weekly example sheets. All employees are listed, even those without punches.'
+                : 'One Excel sheet with a row per employee (duplicate punches merged). Employees from your roster with no punch are listed with "-". Same layout as your daily example sheet.'}</div>
+              <div className="small muted mt">The layout is fixed, so the column picker is switched off. Corrections from the Edit step are included. Choose the folder in the last step.</div>
+            </div>)}
+          <div className="card" style={fixed || xl ? { opacity: 0.45, pointerEvents: 'none' } : null}>
             <h3>Table columns</h3><div className="sub small">Click to select. Use the buttons to add, remove and reorder. Top = left-most column.</div>
             <div className="row mt" style={{ flexWrap: 'wrap', gap: 6 }}><span className="small muted" style={{ fontWeight: 700 }}>QUICK LAYOUTS</span>
               {d.presets.map((pr) => <button key={pr.name} className="btn sm outline" onClick={() => applyPreset(pr)}>{pr.name}</button>)}</div>
@@ -93,7 +102,7 @@ export default function Configure({ S, set, go, step, maxStep }) {
             </div>
           </div>
           <div className="card mt">
-            <h3>Output image settings</h3>
+            <h3>{xl ? 'Output type' : 'Output image settings'}</h3>
             <label className="lab">ROWS TO SHOW</label>
             {d.modes.map(({ id, title: t, sub }) => (
               <div key={id} className={'radio-row ' + (cfg.mode === id ? 'sel' : '')} onClick={() => setMode(id)}>
@@ -116,7 +125,7 @@ export default function Configure({ S, set, go, step, maxStep }) {
           </div>
         </div>
         <div className="card"><h3>Live preview</h3>
-          <Preview2 res={res} busy={busy} tab={tab} setTab={setTab} /></div>
+          <Preview2 res={res} busy={busy} tab={tab} setTab={setTab} xlsx={xl} /></div>
       </div>
       <div className="footbar">
         <div><b>Ready for editing</b><div className="small muted">{res?.ok ? `${res.images.length} image(s) configured` : 'Building preview…'}</div></div><div className="sp" />

@@ -55,3 +55,10 @@ Module interface: MODULE_INFO, detect(path), load(path, sheet, late_after), buil
 1. User runs python main.py on Windows and reports errors (screenshot or error text).
 2. User sends example images of the wanted employee output; adjust templates/layouts to match.
 3. Installer / .exe packaging.
+
+
+## v1.3.0 (October 2026)
+- Excel downloads: daily transaction sheet (Transaction_YYYY_MM_DD.xlsx) and monthly workbook with one sheet per week (Attendance_<Month>_<Year>_Weekly.xlsx). New Total Time Card input supported.
+- Employee roster (Settings > Employee roster): employees with no punch appear as "-" in the daily sheet.
+- Device clock in the title bar and dashboard; About screen opens when the logo is clicked.
+- New files: core/xlsx_out.py, ui/src/pages/About.jsx. Changed: modules/employee_attendance.py (v1.1.0), core/api.py, core/storage.py, UI pages.

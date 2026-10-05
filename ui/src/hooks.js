@@ -23,4 +23,14 @@ export function usePreview(S, extra = {}) {
   return { res, busy }
 }
 
+// Device clock: re-reads the computer's date and time every second (or every minute when seconds are not shown).
+export function useNow(everyMs = 1000) {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), everyMs)
+    return () => clearInterval(t)
+  }, [everyMs])
+  return now
+}
+
 export const dirname = (p) => (p || '').replace(/[\\/][^\\/]*$/, '')

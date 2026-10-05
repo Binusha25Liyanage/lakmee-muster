@@ -19,6 +19,8 @@ import History from './pages/History.jsx'
 import Settings from './pages/Settings.jsx'
 import EmployeeView from './pages/EmployeeView.jsx'
 import Templates from './pages/Templates.jsx'
+import About from './pages/About.jsx'
+import { useNow } from './hooks'
 import { Help } from './pages/Simple.jsx'
 
 const NAV = [
@@ -39,6 +41,7 @@ export default function App() {
   const [toast, setToast] = useState(null)
   const [cmd, setCmd] = useState(false)
   const [maxed, setMaxed] = useState(false)
+  const now = useNow(1000)
 
   const notify = (msg, err = false, action) => {
     setToast({ msg, err, action })
@@ -54,13 +57,13 @@ export default function App() {
 
   useEffect(() => {
     api.app_info().then(setInfo)
-    api.settings().then((s) => set((p) => ({ out: { ...p.out, img1: s.img1_folder, img2: s.img2_folder, pdf: s.pdf_folder,
+    api.settings().then((s) => set((p) => ({ out: { ...p.out, img1: s.img1_folder, img2: s.img2_folder, pdf: s.pdf_folder, xlsx: s.xlsx_folder,
       dpi: s.dpi, naming: s.naming }, cfg: { ...p.cfg, dateFormat: s.date_format } })))
     const key = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmd(true) } }
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key)
   }, [])
 
-  const active = page === 'wizard' ? (step <= 3 ? 'import' : (S.data?.module === 'employee' ? 'employee' : 'rep')) : page
+  const active = page === 'about' ? '' : page === 'wizard' ? (step <= 3 ? 'import' : (S.data?.module === 'employee' ? 'employee' : 'rep')) : page
   const version = info?.version || '1.0.0'
 
   const body = useMemo(() => {
@@ -70,6 +73,7 @@ export default function App() {
     if (page === 'history') return <History {...ctx} />
     if (page === 'settings') return <Settings {...ctx} />
     if (page === 'help') return <Help {...ctx} />
+    if (page === 'about') return <About {...ctx} />
     return [null, Import, Review, Scope, Configure, Edit, Preview].map((C, i) => (i === step && C ? <C key={i} {...ctx} /> : null))
   }, [page, step, S, info, maxStep])
 
@@ -80,6 +84,7 @@ export default function App() {
         <div className="ttl">Lakmee Muster — Attendance Management System</div>
         <div className="ver">v{version}</div>
         <div className="drag pywebview-drag-region" />
+        <div className="tb-clock" title="Device clock"><b>{now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</b><span>{now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
         <div className="tb-search" onClick={() => setCmd(true)} style={{ cursor: 'pointer' }}>
           <Search size={15} /> Search commands… <kbd>Ctrl+K</kbd>
         </div>
@@ -92,7 +97,7 @@ export default function App() {
       </div>
       <div className="body">
         <div className={'nav ' + (collapsed ? 'collapsed' : '')}>
-          <div className="logo"><img src={logoH} alt="Lakmee Holdings" /></div>
+          <div className="logo" role="button" title="About Lakmee Muster" style={{ cursor: 'pointer' }} onClick={() => setPage('about')}><img src={logoH} alt="Lakmee Holdings" /></div>
           {NAV.map(([id, label, Icon]) => (
             <button key={id} className={'nav-item ' + (active === id ? 'active' : '')} onClick={() => nav(id)} title={label}>
               <Icon size={19} /><span>{label}</span>

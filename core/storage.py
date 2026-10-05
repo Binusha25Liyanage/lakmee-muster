@@ -37,7 +37,7 @@ def _write(name, obj):
 
 # ---------------------------------------------------------------- settings
 DEFAULT_SETTINGS = {
-    "img1_folder": "", "img2_folder": "", "pdf_folder": "",
+    "img1_folder": "", "img2_folder": "", "pdf_folder": "", "xlsx_folder": "",
     "dpi": 300, "naming": "{Module}_{Scope}_{Date}",
     "date_format": "MM/DD/YYYY", "late_after": "08:15",
     "density": "comfortable",
@@ -118,3 +118,55 @@ def save_user_template(t):
 
 def delete_user_template(tid):
     _write("templates.json", [x for x in get_user_templates() if x["id"] != tid])
+
+
+# ---------------------------------------------------------------- employee roster
+# Everyone the app has seen in an employee file. Used to list employees with no punch on a day (shown with "-").
+def _roster():
+    r = _read("roster.json", {})
+    return {"people": r.get("people", {}), "excluded": r.get("excluded", [])}
+
+
+def get_roster():
+    r = _roster()
+    return [{"id": i, "name": p.get("name", ""), "dept": p.get("dept", ""), "excluded": i in r["excluded"]}
+            for i, p in sorted(r["people"].items(), key=lambda kv: (len(kv[0]), kv[0]))]
+
+
+def learn_roster(entries):
+    """Adds unseen employees; never overwrites a name the user already has."""
+    r = _roster()
+    changed = False
+    for e in entries or []:
+        i = str(e.get("id", "")).strip()
+        if i and i not in r["people"]:
+            r["people"][i] = {"name": e.get("name", ""), "dept": e.get("dept", "")}
+            changed = True
+    if changed:
+        _write("roster.json", r)
+    return changed
+
+
+def set_roster_excluded(eid, excluded):
+    r = _roster()
+    ex = set(r["excluded"])
+    (ex.add if excluded else ex.discard)(str(eid))
+    r["excluded"] = sorted(ex)
+    _write("roster.json", r)
+    return get_roster()
+
+
+def add_roster(eid, name, dept):
+    r = _roster()
+    r["people"][str(eid).strip()] = {"name": name.strip(), "dept": dept.strip()}
+    r["excluded"] = [x for x in r["excluded"] if x != str(eid).strip()]
+    _write("roster.json", r)
+    return get_roster()
+
+
+def delete_roster(eid):
+    r = _roster()
+    r["people"].pop(str(eid), None)
+    r["excluded"] = [x for x in r["excluded"] if x != str(eid)]
+    _write("roster.json", r)
+    return get_roster()
