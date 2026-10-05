@@ -62,3 +62,8 @@ Module interface: MODULE_INFO, detect(path), load(path, sheet, late_after), buil
 - Employee roster (Settings > Employee roster): employees with no punch appear as "-" in the daily sheet.
 - Device clock in the title bar and dashboard; About screen opens when the logo is clicked.
 - New files: core/xlsx_out.py, ui/src/pages/About.jsx. Changed: modules/employee_attendance.py (v1.1.0), core/api.py, core/storage.py, UI pages.
+
+## v1.4.0
+- Attendance database (core/database.py, SQLite file attendance.db in %APPDATA%\LakmeeMuster). Every export is saved automatically (with edits); "Add Excel file to database" loads older files.
+- New screen "Attendance Database": Today, Yesterday, This/Last week (Mon-Sun), This/Last month, This/Last year, All time, Custom range; employees or reps; one person, department/region, search; per-person summary and daily records; Download as Excel; delete a period.
+- Staff-sheet names without ID are linked to the same person in biometric/time-card files by first name when it is unambiguous.

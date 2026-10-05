@@ -15,10 +15,10 @@ import time
 
 from reportlab.pdfgen import canvas
 
-from . import renderer, storage, xlsx_out
+from . import database, renderer, storage, xlsx_out
 
 APP_NAME = "Lakmee Muster"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 
 MODULE_FILES = {"rep": "modules.rep_attendance", "employee": "modules.employee_attendance"}
 MODULE_SHORT = {"rep": "Rep", "employee": "Employee"}
@@ -288,6 +288,67 @@ class Api:
     def roster_delete(self, eid):
         return storage.delete_roster(eid)
 
+    # ------------------------------------------------------------ attendance database
+    def db_stats(self):
+        return database.stats()
+
+    def db_people(self, kind):
+        return database.people(kind)
+
+    def db_query(self, p):
+        try:
+            return database.query(p, storage.get_settings().get("late_after", "08:15"))
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def db_add_file(self, path):
+        """Reads an Excel file and stores it in the database without going through the export wizard."""
+        if not path or not os.path.exists(path):
+            return {"ok": False, "error": "File not found."}
+        late = storage.get_settings().get("late_after", "08:15")
+        for mid in ("rep", "employee"):
+            mod = _module(mid)
+            try:
+                if not mod.detect(path):
+                    continue
+                data = mod.load(path, late_after=late)
+            except Exception as e:
+                return {"ok": False, "error": str(e)}
+            if data.get("roster_learn"):
+                storage.learn_roster(data["roster_learn"])
+            n = database.save_rows(data, [r for r in data["records"] if not r.get("_skip")], path)
+            return {"ok": True, "saved": n, "kind": data.get("kind_label", mid), "date": data.get("date_label")}
+        return {"ok": False, "error": "Could not recognise this Excel file."}
+
+    def db_delete(self, kind, start, end):
+        return {"ok": True, "deleted": database.delete_range(kind, start, end), "stats": database.stats()}
+
+    def db_export(self, p, folder):
+        """Saves the current filter result as an Excel file (Summary + Records sheets)."""
+        try:
+            r = database.query(p, storage.get_settings().get("late_after", "08:15"))
+            emp = r["kind"] != "rep"
+            sub = f"{r['label']}: {r['from']} to {r['to']}" if p.get("preset") != "all" else "All time"
+            sh = []
+            sh.append({"style": "daily", "name": "Summary", "title": ("Employee" if emp else "Rep") + " Attendance Summary",
+                       "subtitle": sub,
+                       "headers": ["ID", "Name", "Department" if emp else "Region", "Days", "Present", "Leave", "Absent", "Late" if emp else "Not logged out", "Avg check-in"],
+                       "rows": [[s["id"], s["who"], s["group"], s["days"], s["present"], s["leave"], s["absent"], s["late"] if emp else s["no_out"], s["avg_in"]] for s in r["summary"]],
+                       "widths": {1: 12, 2: 26, 3: 18, 4: 8, 5: 9, 6: 8, 7: 9, 8: 14, 9: 13}, "band": 0, "band_color": "EFE9F5",
+                       "head_fill": "4A4743", "aligns": ["l", "l", "l", "c", "c", "c", "c", "c", "c"]})
+            sh.append({"style": "daily", "name": "Records", "title": ("Employee" if emp else "Rep") + " Attendance Records",
+                       "subtitle": sub, "headers": ["Date", "ID", "Name", "Department" if emp else "Territory", "Status", "Check in", "Check out", "Source"],
+                       "rows": [[x["day"], x.get("emp_id") or x.get("rep_code") or "", x["name"] if emp else x["rep_name"], x["group"] if emp else x["territory"],
+                                 x.get("status") or "", x["check_in"], x["check_out"], x.get("source") or ""] for x in r["records"]],
+                       "widths": {1: 12, 2: 10, 3: 26, 4: 22, 5: 8, 6: 10, 7: 10, 8: 34}, "band": 0, "band_color": "EFE9F5",
+                       "head_fill": "4A4743", "aligns": ["l"] * 8})
+            os.makedirs(folder, exist_ok=True)
+            name = f"{'Employee' if emp else 'Rep'}_Attendance_{r['from'] if p.get('preset') != 'all' else 'All'}_{r['to'] if p.get('preset') != 'all' else 'time'}.xlsx"
+            path = xlsx_out.write_workbook(os.path.join(folder, name), sh)
+            return {"ok": True, "path": path}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     # ------------------------------------------------------------ settings / history
     def settings(self):
         return storage.get_settings()
@@ -387,6 +448,10 @@ class Api:
                         else:
                             fh.write(renderer.render_png(tpl, title, headers, rows, dpi=dpi))
                     written.append(path)
+            try:
+                saved = database.save_rows(self._data, p["rows"], self._source)
+            except Exception:
+                saved = None                      # the database must never block an export
             storage.save_settings({"img1_folder": f["img1"], "img2_folder": f["img2"], "pdf_folder": f["pdf"], "xlsx_folder": f.get("xlsx", ""),
                                    "dpi": dpi, "naming": p.get("naming") or "{Module}_{Scope}_{Date}"})
             entry = storage.add_history({
@@ -394,6 +459,6 @@ class Api:
                 "source": os.path.basename(self._source or ""),
                 "template": tpl["name"], "files": written, "edited": int(p.get("edits", 0)),
                 "date": self._data.get("date")})
-            return {"ok": True, "files": written, "history": entry}
+            return {"ok": True, "files": written, "history": entry, "db": saved}
         except Exception as e:
             return {"ok": False, "error": str(e)}

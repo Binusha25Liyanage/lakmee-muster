@@ -11,6 +11,7 @@ export default function About({ info }) {
     [Users, 'Employee attendance', 'Reads the monthly staff sheet, the daily biometric export and the monthly Total Time Card.'],
     [FileSpreadsheet, 'Excel downloads', 'Daily transaction sheet, and one workbook with a sheet for every week of the month.'],
     [ImageIcon, 'Edit before export', 'Correct times, statuses and names first. Your original Excel file is never changed.'],
+    [FileSpreadsheet, 'Attendance database', 'Every export is stored, so you can look up today, this week, last month, a year or any rep or employee later.'],
     [ShieldCheck, 'Independent modules', 'Rep and employee modules are separate files and can be updated on their own.'],
     [Clock, 'Real-time', 'Uses this computer\'s clock and calendar for dates, greetings and defaults.'],
   ]

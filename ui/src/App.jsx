@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   LayoutDashboard, CloudUpload, ClipboardList, Users, FileText, History as HistoryIcon, SlidersHorizontal,
-  HelpCircle, ChevronsLeft, ChevronsRight, Search, Settings as Cog, UserRound, Minus, Square, X,
+  HelpCircle, Database as DbIcon, ChevronsLeft, ChevronsRight, Search, Settings as Cog, UserRound, Minus, Square, X,
 } from 'lucide-react'
 import { api } from './api'
 import { initialSession } from './store'
@@ -20,13 +20,14 @@ import Settings from './pages/Settings.jsx'
 import EmployeeView from './pages/EmployeeView.jsx'
 import Templates from './pages/Templates.jsx'
 import About from './pages/About.jsx'
+import Database from './pages/Database.jsx'
 import { useNow } from './hooks'
 import { Help } from './pages/Simple.jsx'
 
 const NAV = [
   ['dashboard', 'Dashboard', LayoutDashboard], ['import', 'Import Data', CloudUpload],
   ['rep', 'Rep Attendance', ClipboardList], ['employee', 'Employee Attendance', Users],
-  ['templates', 'Output Templates', FileText], ['history', 'Export History', HistoryIcon],
+  ['database', 'Attendance Database', DbIcon], ['templates', 'Output Templates', FileText], ['history', 'Export History', HistoryIcon],
   ['settings', 'Settings', SlidersHorizontal], ['help', 'Help & About', HelpCircle],
 ]
 
@@ -74,6 +75,7 @@ export default function App() {
     if (page === 'settings') return <Settings {...ctx} />
     if (page === 'help') return <Help {...ctx} />
     if (page === 'about') return <About {...ctx} />
+    if (page === 'database') return <Database {...ctx} />
     return [null, Import, Review, Scope, Configure, Edit, Preview].map((C, i) => (i === step && C ? <C key={i} {...ctx} /> : null))
   }, [page, step, S, info, maxStep])
 

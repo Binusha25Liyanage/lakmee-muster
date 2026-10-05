@@ -1,5 +1,5 @@
-Lakmee Muster 1.3.0 update (from 1.2.0)
+Lakmee Muster 1.4.0 update (works from 1.2.0 or 1.3.0)
 1. Close the app.
 2. Extract this ZIP INTO your lakmee-muster project folder and choose "Replace files".
-3. Start the app again (run.bat). No new packages are needed.
-Your settings, history and templates are kept (they live in %APPDATA%\LakmeeMuster).
+3. Start the app again (run.bat). No new packages are needed (the database uses Python's built-in sqlite3).
+Your settings, history, templates and the new attendance.db live in %APPDATA%\LakmeeMuster and are kept.

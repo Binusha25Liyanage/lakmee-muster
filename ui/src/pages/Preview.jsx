@@ -10,6 +10,7 @@ export default function Preview({ S, set, go, step, maxStep, notify, nav }) {
   const [tab, setTab] = useState(0)
   const [zoom, setZoom] = useState(100)
   const [done, setDone] = useState(null)
+  const [dbSaved, setDbSaved] = useState(null)
   const [busyExp, setBusyExp] = useState(false)
   const { res, busy } = usePreview(S, { dpi_preview: 200 })
   const out = S.out
@@ -41,7 +42,7 @@ export default function Preview({ S, set, go, step, maxStep, notify, nav }) {
     })
     setBusyExp(false)
     if (!r.ok) return notify(r.error, true)
-    setDone(r.files)
+    setDone(r.files); setDbSaved(r.db)
   }
   const openAll = () => [...new Set([out.xlsx, out.img1, out.img2, out.pdf])].forEach((f) => f && api.open_folder(f))
 
@@ -99,6 +100,7 @@ export default function Preview({ S, set, go, step, maxStep, notify, nav }) {
       {done && (
         <Modal title="Export successful" onClose={() => setDone(null)} width={560}>
           <div className="row"><CheckCircle2 color="var(--ok)" size={22} /><b>{done.length} file(s) saved</b></div>
+          {dbSaved && <div className="small muted mt">Also saved to the attendance database: {dbSaved.employees + dbSaved.reps} record(s).</div>}
           <div className="mt" style={{ maxHeight: 220, overflow: 'auto' }}>{done.map((f) => <div key={f} className="issue small mono" style={{ userSelect: 'text', marginBottom: 6, wordBreak: 'break-all' }}>{f}</div>)}</div>
           <div className="row mt"><button className="btn primary" onClick={openAll}><FolderOpen size={15} /> View files in Explorer</button>
             <button className="btn ghost" onClick={() => { setDone(null); nav('history') }}>Open history</button></div>
