@@ -18,7 +18,7 @@ from reportlab.pdfgen import canvas
 from . import database, renderer, storage, xlsx_out
 
 APP_NAME = "Lakmee Muster"
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.4.1"
 
 MODULE_FILES = {"rep": "modules.rep_attendance", "employee": "modules.employee_attendance"}
 MODULE_SHORT = {"rep": "Rep", "employee": "Employee"}
@@ -26,7 +26,30 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REQUIRED = ("MODULE_INFO", "detect", "load", "build_tables")
 
 
+FROZEN = bool(getattr(sys, "frozen", False))     # True inside the .exe built with PyInstaller
+_user_cache = {}
+
+
+def _target(mid):
+    """File that a module update replaces. In the .exe the bundle is read-only, so updates go to
+    %APPDATA%\\LakmeeMuster\\modules and win over the bundled copy."""
+    rel = MODULE_FILES[mid].replace(".", os.sep) + ".py"
+    if FROZEN:
+        return os.path.join(storage.data_dir(), "modules", os.path.basename(rel))
+    return os.path.join(HERE, rel)
+
+
 def _module(mid):
+    if FROZEN:
+        p = _target(mid)
+        if os.path.exists(p):
+            stamp = os.path.getmtime(p)
+            if mid not in _user_cache or _user_cache[mid][0] != stamp:
+                spec = importlib.util.spec_from_file_location("_user_" + mid, p)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                _user_cache[mid] = (stamp, mod)
+            return _user_cache[mid][1]
     return importlib.import_module(MODULE_FILES[mid])
 
 
@@ -51,13 +74,13 @@ class Api:
     def app_info(self):
         mods = []
         for mid, modname in MODULE_FILES.items():
-            path = os.path.join(HERE, modname.replace(".", os.sep) + ".py")
+            path = _target(mid) if (FROZEN and os.path.exists(_target(mid))) else os.path.join(HERE, modname.replace(".", os.sep) + ".py")
             try:
                 info = dict(_module(mid).MODULE_INFO)
             except Exception as e:  # a broken module must not stop the app
                 info = {"id": mid, "name": mid, "version": "error", "error": str(e)}
-            info["file"] = os.path.relpath(path, HERE).replace("\\", "/")
-            info["has_backup"] = os.path.exists(path + ".bak")
+            info["file"] = (path if FROZEN and os.path.exists(_target(mid)) else os.path.relpath(path, HERE)).replace("\\", "/")
+            info["has_backup"] = os.path.exists(_target(mid) + ".bak") or (FROZEN and os.path.exists(_target(mid)))
             mods.append(info)
         return {"name": APP_NAME, "version": APP_VERSION, "modules": mods,
                 "data_dir": storage.data_dir(), "platform": sys.platform,
@@ -252,20 +275,27 @@ class Api:
                 return {"ok": False, "error": f"This file is for the '{cand.MODULE_INFO.get('id')}' module, not '{mid}'."}
         except Exception as e:
             return {"ok": False, "error": f"The file could not be loaded: {e}"}
-        target = os.path.join(HERE, MODULE_FILES[mid].replace(".", os.sep) + ".py")
+        target = _target(mid)
         if os.path.abspath(path) == os.path.abspath(target):
             return {"ok": False, "error": "That is the module file already in use. Choose the new version of the file."}
-        shutil.copyfile(target, target + ".bak")
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        if os.path.exists(target):
+            shutil.copyfile(target, target + ".bak")
         shutil.copyfile(path, target)
-        importlib.reload(_module(mid))
+        if not FROZEN:
+            importlib.reload(_module(mid))
         return {"ok": True, "info": self.app_info()}
 
     def restore_module(self, mid):
-        target = os.path.join(HERE, MODULE_FILES[mid].replace(".", os.sep) + ".py")
-        if not os.path.exists(target + ".bak"):
+        target = _target(mid)
+        if FROZEN and os.path.exists(target) and not os.path.exists(target + ".bak"):
+            os.remove(target)                       # no earlier update: go back to the version built into the .exe
+        elif not os.path.exists(target + ".bak"):
             return {"ok": False, "error": "There is no previous version to restore."}
-        shutil.copyfile(target + ".bak", target)
-        importlib.reload(_module(mid))
+        else:
+            shutil.copyfile(target + ".bak", target)
+            if not FROZEN:
+                importlib.reload(_module(mid))
         return {"ok": True, "info": self.app_info()}
 
     # ------------------------------------------------------------ employee roster

@@ -67,3 +67,6 @@ Module interface: MODULE_INFO, detect(path), load(path, sheet, late_after), buil
 - Attendance database (core/database.py, SQLite file attendance.db in %APPDATA%\LakmeeMuster). Every export is saved automatically (with edits); "Add Excel file to database" loads older files.
 - New screen "Attendance Database": Today, Yesterday, This/Last week (Mon-Sun), This/Last month, This/Last year, All time, Custom range; employees or reps; one person, department/region, search; per-person summary and daily records; Download as Excel; delete a period.
 - Staff-sheet names without ID are linked to the same person in biometric/time-card files by first name when it is unambiguous.
+
+## v1.4.1
+- .exe packaging (build_exe.bat, frozen-safe paths, module updates stored in %APPDATA%\LakmeeMuster\modules). Version label fixed to 1.4.1.
