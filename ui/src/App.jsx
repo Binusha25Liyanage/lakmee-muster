@@ -61,7 +61,9 @@ export default function App() {
     api.settings().then((s) => set((p) => ({ out: { ...p.out, img1: s.img1_folder, img2: s.img2_folder, pdf: s.pdf_folder, xlsx: s.xlsx_folder,
       dpi: s.dpi, naming: s.naming }, cfg: { ...p.cfg, dateFormat: s.date_format } })))
     const key = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmd(true) } }
-    window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key)
+    const fit = () => setCollapsed(window.innerWidth < 1180)      // narrow window: slim menu
+    fit(); window.addEventListener('resize', fit)
+    window.addEventListener('keydown', key); return () => { window.removeEventListener('keydown', key); window.removeEventListener('resize', fit) }
   }, [])
 
   const active = page === 'about' ? '' : page === 'wizard' ? (step <= 3 ? 'import' : (S.data?.module === 'employee' ? 'employee' : 'rep')) : page

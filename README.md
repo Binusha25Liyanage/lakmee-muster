@@ -1,46 +1,34 @@
-# Lakmee Muster - Attendance Management System
+# Lakmee Muster
 
-Desktop app (PyWebView window + React UI) for Lakmee Holdings attendance.
-Turns Excel exports into cropped PNG images and a PDF, with an edit step before export.
+Attendance management desktop app for **Lakmee Holdings**. Import an attendance Excel export, check and correct it, then download clean images, PDFs or Excel sheets, and keep every export in a searchable database.
 
-## What it reads
-- SFA rep attendance export (territory, logged in / logged out)
-- Monthly employee sheet (P, Ab, L, H, Half-day, Visit + arrival times, one sheet per month)
-- Biometric transaction export (Employee ID, name, department, time, punch state)
+Built by the **IT Department of Lakmee Holdings**.
 
-## The flow
-Import > Review & Fix > Select Scope > Configure > Edit > Preview & Save
-- Scope: all reps / rep-wise, all employees / employee-wise
-- Edit: double-click cells, undo/redo, add/hide rows, find & replace, bulk edit, saved name corrections, edit log
-- Output: PNG image(s) + PDF, saved into three separate folders, remembered between runs
-- Employee monthly sheet: "Same layout as the Excel sheet (exact copy)" output - names down the side, two columns per day, the sheet's colours and row order, optional Total columns
-- Output Templates: built-in looks, editor with live preview, upload/export template files (.json), default per module
-- Settings > Modules: update one module from a file (previous version kept as a backup)
+## Features
+
+- **Rep attendance** from the SFA RepAttendance export: cropped PNG images and a PDF, saved to three separate folders
+- **Employee attendance** from the monthly staff sheet, the daily biometric export and the monthly Total Time Card
+- **Excel downloads**: a daily transaction sheet and one workbook with a sheet for every week of the month
+- **Excel layouts**: upload an example `.xlsx` and the app copies its structure, colours and column order
+- **Edit before export**: fix times, statuses and names; the original Excel file is never changed
+- **Attendance database** (SQLite): every export is saved; filter by today, yesterday, this/last week, month or year, a custom range, and per rep or employee
+- **Output templates** to change how images look, no code needed
+- Independent rep and employee modules that can be updated separately
+- Uses the computer's real-time clock and calendar
+
+## Tech
+
+Python (PyWebView, openpyxl, ReportLab, Pillow, SQLite) with a React interface.
 
 ## Run
-    python -m pip install -r requirements.txt
-    python main.py            (or double-click run.bat)
 
-## Structure
-    main.py                          window + startup
-    core/api.py                      bridge the UI calls (window.pywebview.api)
-    core/renderer.py                 template-driven PNG + PDF drawing
-    core/storage.py                  settings, history, corrections, templates  (saved in %APPDATA%\LakmeeMuster)
-    modules/rep_attendance.py        independent REP module
-    modules/employee_attendance.py   independent EMPLOYEE module
-    ui/src/                          React source
-    ui/dist/                         built UI (what the app loads; no Node needed to run)
+```bash
+python -m pip install -r requirements.txt
+python main.py
+```
 
-## Change the UI later (needs Node.js)
-    cd ui
-    npm install
-    npm run build
+On Windows you can double-click `run.bat`. To build a shareable `.exe` folder, double-click `build_exe.bat`.
 
-## Update one module only
-Settings > Modules > "Update from file...", or replace the file in `modules/`.
-A module must define MODULE_INFO, detect, load and build_tables (see the existing files).
-Only load module files you trust: they run as code on the PC.
+## Notes
 
-## Template file format (.json)
-    {"name": "My look", "title": "LOGGED IN DATE {date}", "header_fill": "#2E2E30", "zebra": true}
-Any field you leave out takes the default. Use the editor on the Output Templates screen and the export button to see every field.
+Attendance files contain names and other personal data. Do not commit real exports or generated files to a public repository.

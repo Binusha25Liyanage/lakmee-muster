@@ -764,7 +764,7 @@ def build_workbook(data, rows, mode, late_after="08:15", roster=None, include_ab
         d = datetime.date.fromisoformat(date)
         spec = {"key": "daily", "name": "Transaction", "style": "daily", "title": "Transaction", "subtitle": f"Date: {date}",
                 "headers": headers, "rows": body, "widths": {1: 16, 2: 16, 3: 16, 4: 12, 5: 14}, "band": 0, "band_color": BAND_DAILY,
-                "head_fill": DARK, "aligns": ["l"] * 5}
+                "head_fill": DARK, "aligns": ["l"] * 5, "kind": "list", "fields": ["id", "name", "dept", "time", "state"], "date": date}
         return {"filename": f"Transaction_{d.year}_{d.month:02d}_{d.day:02d}", "sheets": [spec]}
     # weekly workbook from the Total Time Card
     rows = sorted(rows, key=_id_key)
@@ -784,7 +784,8 @@ def build_workbook(data, rows, mode, late_after="08:15", roster=None, include_ab
         sheets.append({"key": f"week{w['n']}", "name": w["sheet"], "style": "weekly", "title": "Employee Daily Attendance", "title_cols": 3,
                        "group": group, "headers": heads, "flat_headers": flat, "rows": body,
                        "widths": {**{c: 16 for c in (1, 2, 3)}, **{c: 11 for c in range(4, 4 + 2 * len(w["days"]))}},
-                       "band": 1, "band_color": BAND_WEEKLY, "head_fill": DARK, "aligns": ["l"] * 3 + ["c"] * (2 * len(w["days"]))})
+                       "band": 1, "band_color": BAND_WEEKLY, "head_fill": DARK, "aligns": ["l"] * 3 + ["c"] * (2 * len(w["days"])),
+                       "kind": "grid", "fields": ["id", "name", "dept"], "days": [d["iso"] for d in w["days"]]})
     for s in sheets:                                   # the preview image uses the flat header names
         s["headers_preview"] = s["flat_headers"]
     return {"filename": f"Attendance_{data.get('month_label', '').title().replace(' ', '_')}_Weekly", "sheets": sheets}

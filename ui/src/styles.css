@@ -8,13 +8,13 @@
 }
 *{box-sizing:border-box}
 html,body,#root{height:100%;margin:0}
-body{font-family:'Segoe UI',Inter,system-ui,-apple-system,sans-serif;font-size:14px;color:var(--text);background:var(--cream);overflow:hidden;user-select:none}
+body{font-family:'Segoe UI',Inter,system-ui,-apple-system,sans-serif;font-size:14px;color:var(--text);background:var(--cream);overflow:auto;user-select:none}
 input,select,textarea,button{font:inherit;color:inherit}
 button{cursor:pointer}
 ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#cfc5aa;border-radius:8px}::-webkit-scrollbar-track{background:transparent}
 
 /* ---------- window frame ---------- */
-.app{display:flex;flex-direction:column;height:100%}
+.app{display:flex;flex-direction:column;height:100%;min-width:860px;min-height:540px}
 .titlebar{height:46px;background:var(--maroon);display:flex;align-items:center;gap:12px;padding:0 0 0 10px;color:var(--cream);flex:none}
 .titlebar .badge{background:#fff;border-radius:7px;height:30px;padding:2px 8px;display:flex;align-items:center}
 .titlebar .badge img{height:24px}
@@ -156,3 +156,15 @@ table.t.fixedcols th:nth-child(3){background:var(--ash);z-index:3}
 /* device clock in the title bar */
 .tb-clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1;color:#fff;margin-right:10px;font-size:11px;opacity:.95}
 .tb-clock b{font-size:15px;letter-spacing:.5px}
+
+/* small windows / laptop screens: smaller title bar, 2-column grids, stacked panels, scroll bars when still too tight */
+@media (max-width:1250px){
+  .g4,.g5{grid-template-columns:repeat(2,1fr)!important}.g3{grid-template-columns:repeat(2,1fr)!important}
+  .tb-search{min-width:0;width:auto}.tb-search kbd{display:none}.tb-clock span{display:none}
+  .main{padding:14px 14px 20px}
+}
+@media (max-width:1100px){
+  .grid[style]{grid-template-columns:1fr!important}
+  .g2{grid-template-columns:1fr!important}
+  .tb-search{display:none}
+}

@@ -15,15 +15,16 @@ import time
 
 from reportlab.pdfgen import canvas
 
-from . import database, renderer, storage, xlsx_out
+from . import database, renderer, storage, xlsx_out, xlsx_template
 
 APP_NAME = "Lakmee Muster"
-APP_VERSION = "1.4.1"
+APP_VERSION = "1.5.0"
 
 MODULE_FILES = {"rep": "modules.rep_attendance", "employee": "modules.employee_attendance"}
 MODULE_SHORT = {"rep": "Rep", "employee": "Employee"}
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REQUIRED = ("MODULE_INFO", "detect", "load", "build_tables")
+XLSX_MODES = ("xlsx_daily", "xlsx_weeks")
 
 
 FROZEN = bool(getattr(sys, "frozen", False))     # True inside the .exe built with PyInstaller
@@ -94,10 +95,22 @@ class Api:
         if self._window:
             if getattr(self, "_maxed", False):
                 self._window.restore()
+                self._fit_window()
             else:
                 self._window.maximize()
             self._maxed = not getattr(self, "_maxed", False)
         return getattr(self, "_maxed", False)
+
+    def _fit_window(self):
+        """After 'restore down' put the window back at a size that fits the screen, centred."""
+        try:
+            import webview
+            s = webview.screens[0]
+            w, h = min(1440, int(s.width * 0.9)), min(900, int(s.height * 0.9))
+            self._window.resize(w, h)
+            self._window.move(max(0, (s.width - w) // 2), max(0, (s.height - h) // 2))
+        except Exception:
+            pass
 
     def win_close(self):
         if self._window:
@@ -114,6 +127,7 @@ class Api:
     def pick_other(self, kind="json"):
         import webview
         types = {"json": ("Template files (*.json)", "All files (*.*)"),
+                 "xlsx": ("Excel files (*.xlsx;*.xlsm)", "All files (*.*)"),
                  "py": ("Python module (*.py)", "All files (*.*)")}[kind]
         r = self._window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=types)
         return r[0] if r else None
@@ -259,6 +273,31 @@ class Api:
                 return {**renderer.DEFAULT_TEMPLATE, **t}
         return renderer.DEFAULT_TEMPLATE
 
+    # ------------------------------------------------------------ Excel layouts (templates learned from an example .xlsx)
+    def xlsx_templates(self):
+        return [{"id": t["id"], "name": t["name"], "kind": t["kind"], "summary": xlsx_template.summary(t),
+                 "title": t.get("title"), "notes": t.get("notes", []), "look": t["look"]} for t in storage.get_xlsx_templates()]
+
+    def import_xlsx_template(self, path, name=None):
+        """Learns the structure of an example Excel output (title rows, column names/order, colours, widths, day groups)."""
+        try:
+            t = xlsx_template.extract(path, name or os.path.splitext(os.path.basename(path))[0])
+            storage.save_xlsx_template(t)
+            return {"ok": True, "template": t["name"], "kind": t["kind"], "notes": t["notes"], "templates": self.xlsx_templates()}
+        except Exception as e:
+            return {"ok": False, "error": f"Could not read that Excel file: {e}"}
+
+    def delete_xlsx_template(self, tid):
+        storage.delete_xlsx_template(tid)
+        return self.xlsx_templates()
+
+    def rename_xlsx_template(self, tid, name):
+        t = next((x for x in storage.get_xlsx_templates() if x["id"] == tid), None)
+        if t and name.strip():
+            t["name"] = name.strip()
+            storage.save_xlsx_template(t)
+        return self.xlsx_templates()
+
     # ------------------------------------------------------------ module updates
     def update_module(self, mid, path):
         """Replace a module file with a new one (validated first). The old file is kept as <file>.bak."""
@@ -400,7 +439,10 @@ class Api:
         late = storage.get_settings().get("late_after", "08:15")
         extra = {k: p[k] for k in ("include_empty", "hidden", "sheet_opts") if k in p}
         extra["roster"] = [r for r in storage.get_roster() if not r["excluded"]]
-        tables = mod.build_tables(self._data, p["rows"], p["columns"], p.get("mode", "split"), p.get("sort", "excel"), late, **extra)
+        if p.get("mode") in XLSX_MODES:
+            tables = [(x["key"], x.get("headers_preview", x["headers"]), x["rows"]) for x in self._book(p)["sheets"]]
+        else:
+            tables = mod.build_tables(self._data, p["rows"], p["columns"], p.get("mode", "split"), p.get("sort", "excel"), late, **extra)
         if not tables:
             raise ValueError("No rows match this filter, nothing to draw.")
         tpl = self._template(p.get("template") or self._data.get("default_template", "classic-grid"))
@@ -408,6 +450,18 @@ class Api:
         title = (p.get("title") or tpl["title"]).replace("{date}", _fmt_date(self._data.get("date"), style)) \
             .replace("{month}", self._data.get("month_label", "")).strip()
         return tables, tpl, title
+
+    def _book(self, p):
+        """The Excel workbook for the current mode, shaped by the chosen Excel layout (if any)."""
+        late = storage.get_settings().get("late_after", "08:15")
+        book = _module(self._data["module"]).build_workbook(
+            self._data, p["rows"], p["mode"], late, roster=[r for r in storage.get_roster() if not r["excluded"]],
+            include_absent=p.get("include_empty", True))
+        tid = p.get("xlsx_template")
+        tpl = next((t for t in storage.get_xlsx_templates() if t["id"] == tid), None) if tid else None
+        if tpl:
+            book["sheets"] = [xlsx_template.apply(s, tpl) for s in book["sheets"]]
+        return book
 
     def _spec(self, headers, tpl, p):
         """Exact-copy layouts carry no title unless the user typed one."""
@@ -443,11 +497,8 @@ class Api:
             dpi = int(p.get("dpi", 300))
             written = []
             mid = self._data["module"]
-            if p.get("mode") in ("xlsx_daily", "xlsx_weeks"):
-                late = storage.get_settings().get("late_after", "08:15")
-                wbk = _module(mid).build_workbook(self._data, p["rows"], p["mode"], late,
-                                                  roster=[r for r in storage.get_roster() if not r["excluded"]],
-                                                  include_absent=p.get("include_empty", True))
+            if p.get("mode") in XLSX_MODES:
+                wbk = self._book(p)
                 xf = f.get("xlsx") or f.get("pdf")
                 os.makedirs(xf, exist_ok=True)
                 xpath = os.path.join(xf, wbk["filename"] + ".xlsx")

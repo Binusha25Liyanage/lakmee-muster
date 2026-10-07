@@ -170,3 +170,19 @@ def delete_roster(eid):
     r["excluded"] = [x for x in r["excluded"] if x != str(eid)]
     _write("roster.json", r)
     return get_roster()
+
+
+# ---------------------------------------------------------------- Excel layout templates (learned from example .xlsx files)
+def get_xlsx_templates():
+    return _read("xlsx_templates.json", [])
+
+
+def save_xlsx_template(t):
+    ts = [x for x in get_xlsx_templates() if x["id"] != t["id"]]
+    ts.append(t)
+    _write("xlsx_templates.json", ts)
+    return t
+
+
+def delete_xlsx_template(tid):
+    _write("xlsx_templates.json", [x for x in get_xlsx_templates() if x["id"] != tid])

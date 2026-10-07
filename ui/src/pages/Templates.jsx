@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Upload, Plus, Pencil, Copy, Download, Trash2, Star, Save } from 'lucide-react'
+import { Upload, Plus, Pencil, Copy, Download, Trash2, Star, Save, FileSpreadsheet } from 'lucide-react'
 import { api } from '../api'
 import { Toggle } from '../ui.jsx'
 
@@ -22,10 +22,19 @@ export default function Templates({ notify }) {
   const [list, setList] = useState([])
   const [st, setSt] = useState({})
   const [edit, setEdit] = useState(null)
+  const [xl, setXl] = useState([])
   const edRef = useRef(null)
   useEffect(() => { if (edit && edRef.current) edRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [edit && edit.id, edit && edit.name])
   const load = async () => { setList(await api.templates()); setSt(await api.settings()) }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); api.xlsx_templates().then(setXl) }, [])
+  const uploadXl = async () => {
+    const f = await api.pick_other('xlsx'); if (!f) return
+    const r = await api.import_xlsx_template(f)
+    if (!r.ok) return notify(r.error, true)
+    setXl(r.templates); notify(`Excel layout "${r.template}" learned (${r.kind === 'grid' ? 'weekly grid' : 'list'}).` + (r.notes.length ? ' ' + r.notes.join(' ') : ''))
+  }
+  const renameXl = async (t) => { const n = prompt('Name for this Excel layout', t.name); if (n) setXl(await api.rename_xlsx_template(t.id, n)) }
+  const delXl = async (t) => { if (confirm(`Delete the Excel layout "${t.name}"?`)) setXl(await api.delete_xlsx_template(t.id)) }
   const defOf = (m) => st['default_template_' + m]
   const BUILTIN_DEF = { rep: 'classic-grid', employee: 'emp-summary' }
   const defFor = (t) => ['rep', 'employee'].filter((m) => (t.module === 'any' || t.module === m) && (defOf(m) || BUILTIN_DEF[m]) === t.id)
@@ -60,8 +69,21 @@ export default function Templates({ notify }) {
         <div><div className="eyebrow">Schema engine</div><div className="page-title">Output Templates & Image Layouts</div>
           <p className="sub">A template controls how the table image looks: title, colours, fonts, spacing and borders. Upload a template file to change the output structure without touching any code.</p></div>
         <div className="sp" />
+        <button className="btn outline" onClick={uploadXl}><FileSpreadsheet size={16} /> Upload Excel structure (.xlsx)</button>
         <button className="btn ghost" onClick={upload}><Upload size={16} /> Upload template (.json)</button>
         <button className="btn primary" onClick={() => setEdit({ ...list[0], id: '', name: 'New template', builtin: false })}><Plus size={16} /> Create new template</button>
+      </div>
+
+      <div className="card mt">
+        <div className="row"><FileSpreadsheet size={18} /><h3 style={{ margin: 0 }}>Excel output layouts</h3><div className="sp" />
+          <button className="btn sm primary" onClick={uploadXl}><Upload size={14} /> Upload Excel structure</button></div>
+        <div className="sub small">Upload an example Excel file of the output you want (for example your daily sheet or one weekly sheet). The app learns the title rows, column names and order, colours, widths and day groups, then writes new outputs in that structure. Pick it in the Configure step.</div>
+        {!xl.length ? <div className="small muted mt">No uploaded layouts yet. The built-in layouts copy your Transaction and Attendance example sheets.</div> : xl.map((t) => (
+          <div key={t.id} className="issue row mt" style={{ flexWrap: 'wrap' }}>
+            <span className="chip maroon">{t.kind === 'grid' ? 'Weekly grid' : 'Daily list'}</span>
+            <div style={{ flex: 1, minWidth: 220 }}><b>{t.name}</b><div className="small muted">{t.summary}</div>{t.notes.map((n) => <div key={n} className="small" style={{ color: 'var(--maroon)' }}>{n}</div>)}</div>
+            <button className="btn sm ghost" onClick={() => renameXl(t)}><Pencil size={14} /></button>
+            <button className="btn sm ghost" onClick={() => delXl(t)}><Trash2 size={14} /></button></div>))}
       </div>
 
       <div className="grid g3 mt">

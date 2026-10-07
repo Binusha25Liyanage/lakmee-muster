@@ -70,3 +70,6 @@ Module interface: MODULE_INFO, detect(path), load(path, sheet, late_after), buil
 
 ## v1.4.1
 - .exe packaging (build_exe.bat, frozen-safe paths, module updates stored in %APPDATA%\LakmeeMuster\modules). Version label fixed to 1.4.1.
+
+## v1.5.0
+- Excel layouts: upload an example .xlsx (Output Templates) and the app learns title rows, column names/order, colours, widths, day groups (core/xlsx_template.py). Choose it in Configure for the daily sheet or the weekly workbook.

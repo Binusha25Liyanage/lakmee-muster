@@ -20,7 +20,7 @@ export const initialSession = () => ({
   file: null, data: null, module: null,
   edit: { overrides: {}, hidden: [], added: [] }, undo: [], redo: [], log: [],
   scope: { kind: 'all', selected: [] },
-  cfg: { columns: [], mode: 'split', sort: 'excel', template: 'classic-grid', title: '', dateFormat: 'MM/DD/YYYY', sheet: { rows: false, days: false, totals: false } },
+  cfg: { xlsxTemplate: '', columns: [], mode: 'split', sort: 'excel', template: 'classic-grid', title: '', dateFormat: 'MM/DD/YYYY', sheet: { rows: false, days: false, totals: false } },
   out: { img1: '', img2: '', pdf: '', xlsx: '', dpi: 300, png: true, pdfOn: true, naming: '{Module}_{Scope}_{Date}' },
   ignored: [],
 })
@@ -106,7 +106,7 @@ export function resetRow(S, set, row) {
 // what a freshly loaded file should start with
 export function freshConfig(d, prev, templateDefault) {
   return { ...prev, columns: d.default_columns, mode: d.default_mode, sort: 'excel',
-           template: templateDefault && d.default_mode !== 'sheet' ? templateDefault : d.default_template, title: '', sheet: { rows: false, days: false, totals: false } }
+           template: templateDefault && d.default_mode !== 'sheet' ? templateDefault : d.default_template, title: '', sheet: { rows: false, days: false, totals: false }, xlsxTemplate: '' }
 }
 export const scopeName = (S) => {
   const emp = S.data?.module === 'employee'
@@ -116,4 +116,4 @@ export const scopeName = (S) => {
 export const isXlsx = (S) => !!S.data?.modes?.find((m) => m.id === S.cfg.mode)?.xlsx
 export const isFixed = (S) => !!S.data?.modes?.find((m) => m.id === S.cfg.mode)?.fixed
 // output options the Python side needs besides rows/columns
-export const outputExtras = (S) => ({ include_empty: S.scope.kind === 'all', hidden: S.edit.hidden, sheet_opts: S.cfg.sheet })
+export const outputExtras = (S) => ({ include_empty: S.scope.kind === 'all', hidden: S.edit.hidden, sheet_opts: S.cfg.sheet, xlsx_template: S.cfg.xlsxTemplate || '' })

@@ -10,7 +10,7 @@ export function usePreview(S, extra = {}) {
     rows: computeRows(S), columns: S.cfg.columns, mode: S.cfg.mode, sort: S.cfg.sort,
     template: S.cfg.template, title: S.cfg.title, date_format: S.cfg.dateFormat, dpi_preview: 150, ...outputExtras(S), ...extra,
   }
-  const key = JSON.stringify([params.columns, params.mode, params.sort, params.template, params.title, params.date_format, S.edit, S.scope, S.cfg.sheet])
+  const key = JSON.stringify([params.columns, params.mode, params.sort, params.template, params.title, params.date_format, S.edit, S.scope, S.cfg.sheet, S.cfg.xlsxTemplate])
   useEffect(() => {
     let dead = false
     setBusy(true)
