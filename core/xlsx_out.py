@@ -38,7 +38,7 @@ def write_workbook(path, sheets):
     used = set()
     for spec in sheets:
         ws = wb.create_sheet(_sheet_name(spec["name"], used))
-        (_daily if spec["style"] == "daily" else _weekly)(ws, spec)
+        {"daily": _daily, "weekly": _weekly, "month": _month}[spec["style"]](ws, spec)
     wb.save(path)
     return path
 
@@ -155,3 +155,38 @@ def _weekly(ws, spec):
     _head(ws, spec, look, 3)
     _body(ws, spec, 4, look)
     _widths(ws, spec)
+
+
+def _month(ws, spec):
+    """One employee, one month: title, info block, day table (earliest punch = clock in, latest = clock out), totals."""
+    look = _look({**spec, "style": "daily"})
+    n = len(spec["headers"])
+    _title(ws, spec, look, n)
+    light = _fill("F0EDE9")
+    r = 2
+    for pair in spec["info"]:                       # [(label, value), (label, value)] per row
+        for k, (label, value) in enumerate(pair):
+            c1 = 1 if k == 0 else 4
+            a = ws.cell(r, c1, label); a.font = Font(bold=True); a.fill = light; a.border = _box("CBBFAE")
+            b = ws.cell(r, c1 + 1, value); b.border = _box("CBBFAE"); b.alignment = Alignment(horizontal="left")
+            end = c1 + 1 if k == 1 else 3
+            if end > c1 + 1:
+                ws.merge_cells(start_row=r, start_column=c1 + 1, end_row=r, end_column=end)
+                for cc in range(c1 + 2, end + 1):
+                    ws.cell(r, cc).border = _box("CBBFAE")
+            if k == 1 and c1 + 1 < n:
+                ws.merge_cells(start_row=r, start_column=c1 + 1, end_row=r, end_column=n)
+                for cc in range(c1 + 2, n + 1):
+                    ws.cell(r, cc).border = _box("CBBFAE")
+        r += 1
+    r += 1                                          # blank spacer row
+    _head(ws, spec, look, r)
+    _body(ws, spec, r + 1, look)
+    end = r + 1 + len(spec["rows"]) + 1
+    for i, (label, value) in enumerate(spec.get("summary", [])):
+        a = ws.cell(end + i, 1, label); a.font = Font(bold=True); a.fill = light; a.border = _box("CBBFAE")
+        ws.merge_cells(start_row=end + i, start_column=1, end_row=end + i, end_column=2)
+        ws.cell(end + i, 2).border = _box("CBBFAE")
+        b = ws.cell(end + i, 3, value); b.font = Font(bold=True); b.alignment = Alignment(horizontal="center"); b.border = _box("CBBFAE")
+    _widths(ws, spec)
+    ws.freeze_panes = ws.cell(r + 1, 1)

@@ -18,13 +18,13 @@ from reportlab.pdfgen import canvas
 from . import database, renderer, storage, xlsx_out, xlsx_template
 
 APP_NAME = "Lakmee Muster"
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.6.0"
 
 MODULE_FILES = {"rep": "modules.rep_attendance", "employee": "modules.employee_attendance"}
 MODULE_SHORT = {"rep": "Rep", "employee": "Employee"}
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REQUIRED = ("MODULE_INFO", "detect", "load", "build_tables")
-XLSX_MODES = ("xlsx_daily", "xlsx_weeks")
+XLSX_MODES = ("xlsx_daily", "xlsx_weeks", "xlsx_month")
 
 
 FROZEN = bool(getattr(sys, "frozen", False))     # True inside the .exe built with PyInstaller

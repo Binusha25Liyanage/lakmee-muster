@@ -81,14 +81,16 @@ export default function Configure({ S, set, go, step, maxStep }) {
           {xl && (
             <div className="card" style={{ borderColor: 'var(--maroon)', marginBottom: 14 }}>
               <h3>Excel file (.xlsx) output</h3>
-              <div className="sub small">{d.kind === 'timecard'
+              <div className="sub small">{cfg.mode === 'xlsx_month' ? 'One Excel file with a sheet for every employee: each day of the month with the earliest punch as clock in and the latest punch as clock out, plus days present, late arrivals and total hours.' : d.kind === 'timecard'
                 ? 'One Excel file with a sheet for every week (Week 1 = days 1-7, Week 2 = 8-14 ...). Same layout as your weekly example sheets. All employees are listed, even those without punches.'
                 : 'One Excel sheet with a row per employee (duplicate punches merged). Employees from your roster with no punch are listed with "-". Same layout as your daily example sheet.'}</div>
+              {['xlsx_daily', 'xlsx_weeks'].includes(cfg.mode) && <>
               <label className="lab">EXCEL LAYOUT</label>
               <select className="select" value={cfg.xlsxTemplate || ''} onChange={(e) => setCfg({ xlsxTemplate: e.target.value })}>
                 <option value="">Built-in: copy of my example sheet</option>
-                {xlt.filter((t) => t.kind === (d.kind === 'timecard' ? 'grid' : 'list')).map((t) => <option key={t.id} value={t.id}>{t.name} (uploaded)</option>)}</select>
+                {xlt.filter((t) => t.kind === (cfg.mode === 'xlsx_weeks' ? 'grid' : 'list')).map((t) => <option key={t.id} value={t.id}>{t.name} (uploaded)</option>)}</select>
               <div className="small muted mt">Add your own layouts by uploading an example Excel file in Output Templates.</div>
+              </>}
               <div className="small muted mt">The layout is fixed, so the column picker is switched off. Corrections from the Edit step are included. Choose the folder in the last step.</div>
             </div>)}
           <div className="card" style={fixed || xl ? { opacity: 0.45, pointerEvents: 'none' } : null}>

@@ -82,7 +82,7 @@ export default function Preview({ S, set, go, step, maxStep, notify, nav }) {
           </div>
           <div className="card mt">
             <h3>Packaging</h3>
-            {xl && <div className="row mt"><Toggle on={true} onChange={() => {}} /><div><b>Excel file (.xlsx)</b><div className="small muted">{S.data.kind === 'timecard' ? '1 workbook, one sheet per week' : '1 sheet, same layout as the example'}</div></div></div>}
+            {xl && <div className="row mt"><Toggle on={true} onChange={() => {}} /><div><b>Excel file (.xlsx)</b><div className="small muted">{S.cfg.mode === 'xlsx_month' ? '1 workbook, one sheet per employee' : S.data.kind === 'timecard' ? '1 workbook, one sheet per week' : '1 sheet, same layout as the example'}</div></div></div>}
             <div className="row mt"><Toggle on={out.png} onChange={(v) => setOut({ png: v })} /><div><b>{xl ? 'Also save PNG images' : 'PNG images'}</b><div className="small muted">{two ? res.images.length : 1} file(s), cropped to the table</div></div></div>
             <div className="row mt"><Toggle on={out.pdfOn} onChange={(v) => setOut({ pdfOn: v })} /><div><b>{xl ? 'Also save a PDF' : 'PDF'}</b><div className="small muted">1 file, one page per image</div></div></div>
             <label className="lab">IMAGE QUALITY</label>
